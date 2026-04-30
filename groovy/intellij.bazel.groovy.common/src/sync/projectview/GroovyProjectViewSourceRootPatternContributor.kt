@@ -9,27 +9,16 @@ import org.jetbrains.bazel.sync.workspace.languages.java.sourceRoot.prefix.Sourc
 import org.jetbrains.bazel.workspace.indexAdditionalFiles.ProjectViewGlobSet
 
 /**
- * Source-root optimization patterns for Groovy / Grails projects.
+ * Contributes Grails / Groovy source-root optimisation patterns into the
+ * existing Java source-root pattern set. Each `grails-app/<convention-dir>/`
+ * (controllers, services, domain, ...) is its own source root with packages
+ * declared relative to it, so the patterns must list each subdir explicitly
+ * — pointing at `grails-app/` alone resolves to wrong package depths.
  *
- * Grails 3 puts each `grails-app/<convention-dir>/` (controllers, services,
- * domain, jobs, etc.) on the classpath as its own source root: a controller at
- * `grails-app/controllers/com/foo/MyController.groovy` declares
- * `package com.foo`, NOT `package controllers.com.foo`. The default Java SRO
- * patterns don't cover these paths, so without this contributor the per-file
- * package resolver gets called for every Grails file, resulting in either
- * incorrect package paths (when the resolver fails on a `.groovy` file) or
- * slow sync.
- *
- * This contributor returns the union of:
- *   - hardcoded Grails convention paths (`grails-app/<subdir>/`),
- *   - the standard `src/{main,test,integration-test}/groovy/` source layout,
- *   - any extra patterns supplied via the
- *     `groovy_source_root_optimization_patterns` project-view section.
- *
- * The patterns get merged into the Java SRO matchers via the
- * `org.jetbrains.bazel.javaSourceRootPrefixContributor` EP (see
- * `JavaLanguagePlugin.prepareSync`), so no edits to the Java plugin are
- * required.
+ * Patterns are sourced from the project view's
+ * `groovy_source_root_optimization_patterns` section (defaults set in
+ * [GroovySROPatternsSection]). Lines beginning with `-` are exclude patterns,
+ * matching the existing convention used by Java SRO.
  */
 private class GroovyProjectViewSourceRootPatternContributor : JavaSourceRootPatternContributor {
   override fun getPatterns(project: Project): JavaSourceRootPatterns {

@@ -6,7 +6,7 @@ import org.jetbrains.bazel.languages.projectview.SectionKey
 internal class GroovySROPatternsSection : ListSection<List<String>>() {
   override val name: String = NAME
   override val sectionKey: SectionKey<List<String>> = KEY
-  override val doc: String = "Patterns for Groovy/Grails source root optimization"
+  override val doc: String = "Patterns for Groovy / Grails source root optimization"
   override val default: List<String> = listOf(
     "src/main/groovy",
     "src/test/groovy",

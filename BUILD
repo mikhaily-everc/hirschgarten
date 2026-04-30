@@ -65,6 +65,7 @@ intellij_plugin_zip_and_debug_target(
         "//misc/intellij.bazel.protoedit",
         "//python/intellij.bazel.python.common",
         "//python/intellij.bazel.python.common.performancePlugin",
+        "//groovy/intellij.bazel.groovy.common",
         "//misc/intellij.bazel.remoteDevelopment",
         "//misc/intellij.bazel.terminal",
     ],

@@ -19,14 +19,9 @@ private class GenericBazelRules : TargetKindProvider {
       TargetKind("scala_library", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.LIBRARY),
       TargetKind("scala_binary", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.BINARY),
       TargetKind("scala_test", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.TEST),
-      // No LanguageClass.GROOVY — there's no GroovyLanguagePlugin extension in
-      // this fork, so LanguageProjectMappers has no GROOVY entry. Bazel's
-      // groovy_* rules return JavaInfo and the JVM machinery handles them;
-      // treating them as JAVA-only target kinds is sufficient for workspace
-      // module creation, source-root inference, and IDE indexing.
-      TargetKind("groovy_library", setOf(LanguageClass.JAVA), RuleType.LIBRARY),
-      TargetKind("groovy_binary", setOf(LanguageClass.JAVA), RuleType.BINARY),
-      TargetKind("groovy_test", setOf(LanguageClass.JAVA), RuleType.TEST),
+      TargetKind("groovy_library", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.LIBRARY),
+      TargetKind("groovy_binary", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.BINARY),
+      TargetKind("groovy_test", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.TEST),
       // rules_jvm from IntelliJ monorepo
       TargetKind("jvm_library", setOf(LanguageClass.JAVA, LanguageClass.KOTLIN), RuleType.LIBRARY),
       TargetKind("_jvm_library_jps", setOf(LanguageClass.JAVA, LanguageClass.KOTLIN), RuleType.LIBRARY),
