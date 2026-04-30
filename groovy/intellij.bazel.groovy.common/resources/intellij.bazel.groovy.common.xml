@@ -1,0 +1,19 @@
+<idea-plugin visibility="public">
+  <!-- Hand-edited (not auto-generated) — Groovy / Grails support module. -->
+  <dependencies>
+    <module name="intellij.bazel.commons"/>
+    <module name="intellij.bazel.core"/>
+    <module name="intellij.bazel.importer"/>
+    <module name="intellij.bazel.projectview"/>
+    <module name="intellij.platform.backend"/>
+  </dependencies>
+
+  <extensions defaultExtensionNs="org.jetbrains.bazel">
+    <languagePlugin
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.GroovyLanguagePlugin"/>
+    <projectViewSectionProvider
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.projectview.GroovyProjectViewSectionProvider"/>
+    <javaSourceRootPrefixContributor
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.projectview.GroovyProjectViewSourceRootPatternContributor"/>
+  </extensions>
+</idea-plugin>

@@ -19,6 +19,9 @@ private class GenericBazelRules : TargetKindProvider {
       TargetKind("scala_library", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.LIBRARY),
       TargetKind("scala_binary", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.BINARY),
       TargetKind("scala_test", setOf(LanguageClass.JAVA, LanguageClass.SCALA), RuleType.TEST),
+      TargetKind("groovy_library", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.LIBRARY),
+      TargetKind("groovy_binary", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.BINARY),
+      TargetKind("groovy_test", setOf(LanguageClass.JAVA, LanguageClass.GROOVY), RuleType.TEST),
       // rules_jvm from IntelliJ monorepo
       TargetKind("jvm_library", setOf(LanguageClass.JAVA, LanguageClass.KOTLIN), RuleType.LIBRARY),
       TargetKind("_jvm_library_jps", setOf(LanguageClass.JAVA, LanguageClass.KOTLIN), RuleType.LIBRARY),

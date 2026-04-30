@@ -37,6 +37,7 @@ enum class LanguageClass(
   KOTLIN(10, "kotlin", setOf("kt")),
   THRIFT(11, "thrift", setOf("thrift")),
   PROTOBUF(12, "protobuf", setOf("proto", "protodevel")),
+  GROOVY(13, "groovy", setOf("groovy")),
   ;
 
   override fun toString(): String = name

@@ -335,7 +335,8 @@ class JavaLanguagePlugin: LanguagePlugin {
       target.sourcesList.any {
         it.relativePath.endsWith(".java") ||
         it.relativePath.endsWith(".kt") ||
-        it.relativePath.endsWith(".scala")
+        it.relativePath.endsWith(".scala") ||
+        it.relativePath.endsWith(".groovy")
       }
 
     fun shouldCreateOutputJarsLibrary(targetInfo: TargetInfo, allTargets : Map<Label, TargetInfo>) =
@@ -363,6 +364,9 @@ class JavaLanguagePlugin: LanguagePlugin {
         "scala_library",
         "scala_binary",
         "scala_test",
+        "groovy_library",
+        "groovy_binary",
+        "groovy_test",
         "intellij_plugin_debug_target",
       )
 
