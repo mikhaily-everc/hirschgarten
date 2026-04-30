@@ -56,9 +56,6 @@
     <module name="intellij.bazel.python.common"/>
     <module name="intellij.bazel.python.common.performancePlugin"/>
 
-    <!-- groovy modules -->
-    <module name="intellij.bazel.groovy.common"/>
-
     <!-- misc modules -->
     <module name="intellij.bazel.bytecodeViewer"/>
     <module name="intellij.bazel.coverage"/>
