@@ -72,3 +72,13 @@ intellij_plugin_zip_and_debug_target(
     visibility = ["//visibility:public"],
     zip_filename = "plugin-bazel.zip",
 )
+
+# Exposed so the root MODULE.bazel can reference this as the unified `@maven`
+# lock_file via `maven.install(name = "maven", lock_file = "@hirschgarten//:maven_install.json")`.
+# Required because protobuf@34.1 and hirschgarten both pin a lock_file for the
+# default "maven" install name; rules_jvm_external 7.0 fails on the conflict
+# unless the root module supplies an authoritative override.
+exports_files(
+    ["maven_install.json"],
+    visibility = ["//visibility:public"],
+)

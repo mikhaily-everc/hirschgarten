@@ -24,6 +24,8 @@ def _jvm_test_stamper(ctx):
         outputs = [output_jar],
         executable = ctx.executable._stamper,
         arguments = [args],
+        mnemonic = "JvmTestStamper",
+        progress_message = "Stamping JVM test marker for %{label}",
     )
 
     return [
