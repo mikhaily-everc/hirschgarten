@@ -11,6 +11,7 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.writeAction
 import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.UnindexedFilesScannerExecutor
 import com.intellij.openapi.vfs.findDirectory
@@ -48,7 +49,11 @@ import org.jetbrains.bazel.sync.scope.ProjectSyncScope
 import org.jetbrains.bazel.sync.status.SyncAlreadyInProgressException
 import org.jetbrains.bazel.sync.status.SyncStatusService
 import org.jetbrains.bazel.sync.workspace.BazelWorkspaceResolveService
+import org.jetbrains.bazel.sync.workspace.importer.WorkspaceImporterHelper
+import org.jetbrains.bazel.sync.workspace.snapshot.WorkspaceSnapshot
+import org.jetbrains.bazel.sync.workspace.snapshot.WorkspaceSnapshotBuilder
 import org.jetbrains.bazel.taskEvents.BazelTaskEventsService
+import org.jetbrains.bazel.ui.unsynced.refreshAllFilesPresentation
 import org.jetbrains.bazel.workspace.fileEvents.FileEventJobManager
 import org.jetbrains.bsp.protocol.BazelServerFacade
 import org.jetbrains.bsp.protocol.TaskGroupId
@@ -58,6 +63,7 @@ import kotlin.random.Random
 
 private val log = logger<ProjectSyncTask>()
 
+// TODO: some parts of this logic should be moved to `backend` module
 @ApiStatus.Internal
 class ProjectSyncTask(private val project: Project) {
   suspend fun sync(syncScope: ProjectSyncScope, buildProject: Boolean) {
@@ -149,9 +155,7 @@ class ProjectSyncTask(private val project: Project) {
         }
         finally {
           SyncStatusService.getInstance(project).finishSync()
-          withContext(Dispatchers.EDT) {
-            ProjectView.getInstance(project).refresh(ProjectViewUpdateCause.PLUGIN_BAZEL)
-          }
+          refreshAllFilesPresentation(project)
         }
       }
     }
@@ -161,7 +165,6 @@ class ProjectSyncTask(private val project: Project) {
     log.debug("Running pre sync tasks")
     saveAllFiles()
     clearSyntheticTargets()
-    project.serviceAsync<ProjectViewService>().forceReparseCurrentProjectViewFiles()
   }
 
   private suspend fun clearSyntheticTargets() {
@@ -208,6 +211,13 @@ class ProjectSyncTask(private val project: Project) {
                   taskId = taskId,
                   server = server,
                   deferredApplyActions = deferredApplyActions,
+                  importerHelper = WorkspaceImporterHelper(
+                    project = project,
+                    taskConsole = project.syncConsole,
+                    progressReporter = progressReporter,
+                    taskId = taskId,
+                    builder = storage
+                  ),
                 )
                 shouldUpdateProjectModel = syncResult != SyncResultStatus.FAILURE
                 if (shouldUpdateProjectModel) {
@@ -259,6 +269,7 @@ class ProjectSyncTask(private val project: Project) {
     buildProject: Boolean,
     storage: MutableEntityStorage,
     server: BazelServerFacade,
+    importerHelper: WorkspaceImporterHelper,
     deferredApplyActions: MutableList<suspend () -> Unit>,
   ): SyncResultStatus {
     val resolver = BazelWorkspaceResolveService.getInstance(project)
@@ -290,6 +301,15 @@ class ProjectSyncTask(private val project: Project) {
           subtaskId = taskId.subTask("sync-hooks"),
           text = BazelPluginBundle.message("console.task.execute.sync.hooks"),
         ) { subtaskId ->
+          val resolvedWorkspace = resolver.getOrFetchResolvedWorkspace(scope = syncScope, taskId = subtaskId)
+          val workspaceSnapshot = WorkspaceSnapshotBuilder.build(
+            project = project,
+            workspaceContext = server.workspaceContext,
+            repoMapping = server.workspaceBazelRepoMapping(taskId).repoMapping,
+            resolved = resolvedWorkspace
+          )
+          // importers first
+          importerHelper.invoke(progressReporter, workspaceSnapshot)
           val environment =
             ProjectSyncHookEnvironment(
               project = project,
@@ -300,13 +320,14 @@ class ProjectSyncTask(private val project: Project) {
               progressReporter = progressReporter,
               buildTargets = bazelProject.targets,
               syncScope = syncScope,
-              workspace = resolver.getOrFetchResolvedWorkspace(scope = syncScope, taskId = subtaskId),
+              workspace = resolvedWorkspace,
               deferredApplyActions = deferredApplyActions,
             )
-
+          // then sync hooks
           project.projectSyncHooks.forEachSubtask(subtaskId) {
             it.onSync(environment)
           }
+          deferredApplyActions += { importerHelper.invokeLate(progressReporter, workspaceSnapshot) }
         }
 
         if (bazelProject.hasError) {

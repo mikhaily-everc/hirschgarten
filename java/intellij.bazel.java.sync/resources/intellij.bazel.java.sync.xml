@@ -5,10 +5,13 @@
     <module name="intellij.bazel.importer"/>
     <module name="intellij.bazel.projectview"/>
     <module name="intellij.bazel.protobuf"/>
+    <module name="intellij.java.compiler.impl"/>
     <module name="intellij.java.impl"/>
     <module name="intellij.platform.backend"/>
   </dependencies>
   <!-- endregion -->
+
+  <resource-bundle>messages.BazelJavaBackendBundle</resource-bundle>
 
   <extensionPoints>
     <extensionPoint
@@ -17,6 +20,12 @@
       qualifiedName="org.jetbrains.bazel.kotlinFacetEntityUpdater"
     />
   </extensionPoints>
+
+  <extensions defaultExtensionNs="org.jetbrains.bazel">
+    <syncWorkspaceImporter implementation="org.jetbrains.bazel.workspace.importer.JavaBazelWorkspaceImporter"/>
+    <syncWorkspaceImporter implementation="org.jetbrains.bazel.workspace.importer.ScalaBazelWorkspaceImporter"/>
+  </extensions>
+
   <extensions defaultExtensionNs="com.intellij">
     <moduleType
       id="BAZEL_DUMMY_MODULE_TYPE"

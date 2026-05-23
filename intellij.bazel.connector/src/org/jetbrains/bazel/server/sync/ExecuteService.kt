@@ -23,6 +23,7 @@ import org.jetbrains.bazel.commons.BazelStatus
 import org.jetbrains.bazel.commons.TargetCollection
 import org.jetbrains.bazel.config.BazelConnectorFeatureFlags
 import org.jetbrains.bazel.label.Label
+import org.jetbrains.bazel.server.BazelTestFileNames
 import org.jetbrains.bazel.server.bep.BepBuildResult
 import org.jetbrains.bazel.server.bep.BepReader
 import org.jetbrains.bazel.server.bep.BepServer
@@ -188,7 +189,9 @@ class ExecuteService(
     params.environmentVariables?.let { (command as HasEnvironment).environment.putAll(it) }
     params.arguments?.let { (command as HasProgramArguments).programArguments.addAll(it) }
     command.options.add(BazelFlag.buildEventBinaryPathConversion(false))
-    command.options.add(BazelFlag.remoteDownloadOutputsTopLevel())  // We need, e.g., test.xml downloaded when using remote execution
+    // Ensure all test xml, log, and lcov files are downloaded even when remote_download_outputs=minimal is set
+    command.options.addAll(
+      BazelTestFileNames.entries.map { BazelFlag.remoteDownloadRegex(it.filenameRegex) })
     with(command as HasMultipleTargets) {
       targets.addAll(targetsSpec.values)
       excludedTargets.addAll(targetsSpec.excludedValues)

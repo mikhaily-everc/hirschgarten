@@ -3,8 +3,6 @@ package org.jetbrains.bazel.ideStarter
 import com.intellij.driver.client.Driver
 import com.intellij.driver.client.Remote
 import com.intellij.driver.client.service
-import com.intellij.driver.client.utility
-import com.intellij.driver.model.OnDispatcher
 import com.intellij.driver.model.RdTarget
 import com.intellij.driver.sdk.Project
 import com.intellij.driver.sdk.ProjectManager
@@ -106,6 +104,7 @@ abstract class IdeStarterBaseProjectTest {
       .propagateSystemProperty("bazel.project.view.file.path")
       .propagateSystemProperty("bazel.enable.log")
       .patchPathVariable()
+      .enableCppToolchainDetectionForNestedBazel()
       .withKotlinPluginK2()
       .addIdeStarterTestMarker()
       .applyVMOptionsPatch {
@@ -161,6 +160,14 @@ abstract class IdeStarterBaseProjectTest {
     applyVMOptionsPatch {
       withEnv("PATH", path)
       withEnv("HOME", System.getProperty("user.home"))
+    }
+    return this
+  }
+
+  private fun IDETestContext.enableCppToolchainDetectionForNestedBazel(): IDETestContext {
+    applyVMOptionsPatch {
+      withEnv("BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN", "0")
+      withEnv("BAZEL_NO_APPLE_CPP_TOOLCHAIN", "0")
     }
     return this
   }
@@ -383,12 +390,16 @@ fun Driver.openFile(relativePath: String, waitForCodeAnalysis: Boolean = true): 
  */
 fun Driver.findFile(relativePath: String): VirtualFile? = projectRootDir.findFileByRelativePath(relativePath)
 
-val Driver.projectRootDir: VirtualFile
-  get() = utility<BazelProjectPropertiesKt>().getRootDir(singleProject())
+val Driver.isBazelProject: Boolean
+  get() = service<BazelProjectContextService>(singleProject()).isBazelProject
 
-@Remote("org.jetbrains.bazel.config.BazelProjectPropertiesKt", plugin = "org.jetbrains.bazel/intellij.bazel.core")
-interface BazelProjectPropertiesKt {
-  fun getRootDir(project: Project): VirtualFile
+val Driver.projectRootDir: VirtualFile
+  get() = service<BazelProjectContextService>(singleProject()).projectRootDir
+
+@Remote("org.jetbrains.bazel.sync.environment.BazelProjectContextService", plugin = "org.jetbrains.bazel/intellij.bazel.commons")
+interface BazelProjectContextService {
+  var isBazelProject: Boolean
+  var projectRootDir: VirtualFile
 }
 
 fun UiComponent.assertSyncSucceeded() {

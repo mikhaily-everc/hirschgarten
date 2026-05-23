@@ -6,9 +6,12 @@ import org.jetbrains.bazel.commons.RuleType
 import org.jetbrains.bazel.commons.TargetKind
 import org.jetbrains.bazel.label.Label
 import org.jetbrains.bazel.magicmetamodel.impl.workspacemodel.ModuleDetails
+import org.jetbrains.bazel.sync.workspace.languages.java.sourceRoot.JvmPackagePrefixCalculator
+import org.jetbrains.bazel.sync.workspace.languages.java.sourceRoot.JvmPackagePrefixes
 import org.jetbrains.bsp.protocol.LibraryItem
 import org.jetbrains.bsp.protocol.RawBuildTarget
 import org.jetbrains.bsp.protocol.SourceItem
+import org.jetbrains.bsp.protocol.StrictDependencyCheckedType
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
@@ -63,7 +66,14 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
     val module = createModuleWithRoots(sourceRoots)
 
     // when
-    val entity = CompiledSourceCodeInsideJarExcludeTransformer().transform(listOf(module), listOf(libraryFromInternalTarget, usualLibrary))
+    val entity = CompiledSourceCodeInsideJarExcludeTransformer()
+      .transform(
+        listOf(module),
+        listOf(libraryFromInternalTarget, usualLibrary),
+        MockJvmPrefixCalculator(
+          module.target.id to JvmPackagePrefixes(sourceRoots.associate { it.sourcePath to it.packagePrefix })
+        )
+      )
 
     // then
     entity?.relativePathsInsideJarToExclude shouldBe
@@ -102,7 +112,14 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
     val module = createModuleWithRoots(sourceRoots)
 
     // when
-    val entity = CompiledSourceCodeInsideJarExcludeTransformer().transform(listOf(module), listOf(libraryFromInternalTarget, usualLibrary))
+    val entity = CompiledSourceCodeInsideJarExcludeTransformer()
+      .transform(
+        listOf(module),
+        listOf(libraryFromInternalTarget, usualLibrary),
+        MockJvmPrefixCalculator(
+          module.target.id to JvmPackagePrefixes(sourceRoots.associate { it.sourcePath to it.packagePrefix })
+        )
+      )
 
     // then
     entity?.relativePathsInsideJarToExclude shouldBe
@@ -122,7 +139,12 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
   @Test
   fun `should add correct excludes for libraries from internal target`() {
     // when
-    val entity = CompiledSourceCodeInsideJarExcludeTransformer().transform(emptyList(), listOf(libraryFromInternalTarget, usualLibrary))
+    val entity = CompiledSourceCodeInsideJarExcludeTransformer()
+      .transform(
+        emptyList(),
+        listOf(libraryFromInternalTarget, usualLibrary),
+        MockJvmPrefixCalculator(),
+      )
 
     // then
     entity?.librariesFromInternalTargetsUrls shouldBe
@@ -135,7 +157,7 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
 
   @Test
   fun `should not add entity if no libraries from internal targets are added`() {
-    val entity = CompiledSourceCodeInsideJarExcludeTransformer().transform(emptyList(), listOf(usualLibrary))
+    val entity = CompiledSourceCodeInsideJarExcludeTransformer().transform(emptyList(), listOf(usualLibrary), MockJvmPrefixCalculator())
     entity shouldBe null
   }
 
@@ -157,7 +179,6 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
               SourceItem(
                 path = it.sourcePath,
                 generated = false,
-                jvmPackagePrefix = it.packagePrefix,
               )
             },
           resources = resourceRoots,
@@ -165,7 +186,17 @@ class CompiledSourceCodeInsideJarExcludeTransformerTest {
         ),
       javacOptions = listOf(),
       dependencies = emptyList(),
+      strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+      strictDependencies = emptyList(),
       defaultJdkName = null,
       jvmBinaryJars = emptyList(),
     )
+}
+
+
+class MockJvmPrefixCalculator(vararg prefixes: Pair<Label, JvmPackagePrefixes>) : JvmPackagePrefixCalculator {
+  private val cache = prefixes.toMap()
+  override fun get(target: RawBuildTarget): JvmPackagePrefixes {
+    return cache[target.id] ?: JvmPackagePrefixes(emptyMap())
+  }
 }

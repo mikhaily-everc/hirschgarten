@@ -1,13 +1,16 @@
 package org.jetbrains.bazel.magicmetamodel.impl.workspacemodel.impl.updaters.transformers
 
-import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.DependencyScope
 import com.intellij.platform.workspace.jps.entities.ModuleTypeId
 import org.jetbrains.annotations.ApiStatus
+import org.jetbrains.bazel.commons.RepoMapping
 import org.jetbrains.bazel.label.Label
+import org.jetbrains.bazel.magicmetamodel.formatAsModuleName
 import org.jetbrains.bazel.magicmetamodel.impl.workspacemodel.ModuleDetails
-import org.jetbrains.bazel.sync.environment.getProjectRootDirOrThrow
-import org.jetbrains.bazel.sync.environment.projectCtx
+import org.jetbrains.bazel.sync.workspace.languages.java.sourceRoot.JvmPackagePrefixCalculator
+import org.jetbrains.bazel.workspace.indexAdditionalFiles.ProjectViewGlobSet
 import org.jetbrains.bazel.workspacemodel.entities.ContentRoot
+import org.jetbrains.bazel.workspacemodel.entities.Dependency
 import org.jetbrains.bazel.workspacemodel.entities.GenericModuleInfo
 import org.jetbrains.bazel.workspacemodel.entities.JavaAddendum
 import org.jetbrains.bazel.workspacemodel.entities.JavaModule
@@ -17,6 +20,7 @@ import org.jetbrains.bazel.workspacemodel.entities.ResourceRoot
 import org.jetbrains.bazel.workspacemodel.entities.ScalaAddendum
 import org.jetbrains.bsp.protocol.BuildTarget
 import org.jetbrains.bsp.protocol.JvmBuildTarget
+import org.jetbrains.bsp.protocol.StrictDependencyCheckedType
 import org.jetbrains.bsp.protocol.utils.StringUtils
 import org.jetbrains.bsp.protocol.utils.extractJvmBuildTarget
 import org.jetbrains.bsp.protocol.utils.extractKotlinBuildTarget
@@ -25,17 +29,19 @@ import java.nio.file.Path
 
 @ApiStatus.Internal
 class ModuleDetailsToJavaModuleTransformer(
-  targetsMap: Map<Label, BuildTarget>,
+  private val targetsMap: Map<Label, BuildTarget>,
   fileToTargets: Map<Path, List<Label>>,
   projectBasePath: Path,
-  private val project: Project,
+  private val repoMapping: RepoMapping,
+  private val projectName: String,
+  testSourcesGlob: ProjectViewGlobSet,
+  packagePrefixes: JvmPackagePrefixCalculator,
 ) {
-  private val bspModuleDetailsToModuleTransformer = BspModuleDetailsToModuleTransformer(targetsMap, project)
   private val type = ModuleTypeId("JAVA_MODULE")
   private val resourcesItemToJavaResourceRootTransformer = ResourcesItemToJavaResourceRootTransformer()
   private val javaModuleToDummyJavaModulesTransformerHACK =
-    JavaModuleToDummyJavaModulesTransformerHACK(projectBasePath, fileToTargets, project)
-  private val sourcesItemToJavaSourceRootTransformer = SourcesItemToJavaSourceRootTransformer(project)
+    JavaModuleToDummyJavaModulesTransformerHACK(projectBasePath, fileToTargets)
+  private val sourcesItemToJavaSourceRootTransformer = SourcesItemToJavaSourceRootTransformer(testSourcesGlob, packagePrefixes)
 
   fun transform(inputEntity: ModuleDetails): List<JavaModule> {
     val javaModule =
@@ -81,16 +87,26 @@ class ModuleDetailsToJavaModuleTransformer(
     resourcesItemToJavaResourceRootTransformer.transform(inputEntity.target)
 
   private fun toGenericModuleInfo(inputEntity: ModuleDetails): GenericModuleInfo {
-    val bspModuleDetails =
-      BspModuleDetails(
-        target = inputEntity.target,
-        type = type,
-        javacOptions = inputEntity.javacOptions,
-        associates = toAssociates(inputEntity),
-        dependencies = inputEntity.dependencies,
-      )
-
-    return bspModuleDetailsToModuleTransformer.transform(bspModuleDetails)
+    return GenericModuleInfo(
+      label = inputEntity.target.id,
+      name = inputEntity.target.id.formatAsModuleName(repoMapping),
+      type = type,
+      dependencies = inputEntity.dependencies.map {
+        Dependency(
+          id = it.label.formatAsModuleName(repoMapping),
+          label = it.label,
+          scope = if (it.isRuntime) DependencyScope.RUNTIME else DependencyScope.COMPILE,
+          exported = it.exported,
+        )
+      },
+      strictDependenciesCheck = inputEntity.strictDependenciesCheck,
+      strictDependencies = inputEntity.strictDependencies,
+      kind = inputEntity.target.kind,
+      associates =
+        toAssociates(inputEntity).mapNotNull {
+          targetsMap[it]?.id?.formatAsModuleName(repoMapping)
+        },
+    )
   }
 
   private fun toBaseDirContentRoot(inputEntity: ModuleDetails): ContentRoot =
@@ -103,7 +119,7 @@ class ModuleDetailsToJavaModuleTransformer(
   private fun ModuleDetails.toJdkName(): String? = extractJvmBuildTarget(this.target).toJdkName()
 
   private fun JvmBuildTarget?.toJdkName(): String? =
-    this?.javaHome?.let { project.projectCtx.getProjectRootDirOrThrow().name.projectNameToJdkName(it) }
+    this?.javaHome?.let { projectName.projectNameToJdkName(it) }
 
   private fun toKotlinAddendum(inputEntity: ModuleDetails): KotlinAddendum? {
     val kotlinBuildTarget = extractKotlinBuildTarget(inputEntity.target) ?: return null

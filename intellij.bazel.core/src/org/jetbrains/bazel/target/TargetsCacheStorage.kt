@@ -27,10 +27,8 @@ import org.jetbrains.bazel.label.Package
 import org.jetbrains.bazel.label.ResolvedLabel
 import org.jetbrains.bazel.label.SingleTarget
 import org.jetbrains.bazel.languages.starlark.repomapping.toCanonicalLabelOrThis
-import org.jetbrains.bazel.languages.starlark.repomapping.toShortString
 import org.jetbrains.bazel.magicmetamodel.formatAsModuleName
 import org.jetbrains.bsp.protocol.BuildTarget
-import org.jetbrains.bsp.protocol.LibraryItem
 import org.jetbrains.bsp.protocol.PartialBuildTarget
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -55,8 +53,6 @@ class TargetsCacheStorage(
 
   private val targetToExecutableTargets: MVMap<Long, List<Long>> = openIdToLabelHashListMap("targetToExecutableTargets", store)
   private val fileToTargets: MVMap<Long, List<Long>> = openIdToLabelHashListMap("fileToTargets", store)
-  private val libraryIdToTarget: MVMap<Long, Label> = openIdToLabelMap(store, "libraryIdToTarget")
-  private val moduleIdToTarget: MVMap<Long, Long> = openIdToIdMap(store, "moduleIdToTarget")
   private val labelToTargetInfo: MVMap<Long, PartialBuildTarget> =
     openOrResetMap(
       store = store,
@@ -114,20 +110,6 @@ class TargetsCacheStorage(
       }
     }
 
-  fun computeFullLabelToTargetInfoMap(syncedTargetIdToTargetInfo: Map<Label, BuildTarget>): Map<Label, BuildTarget> {
-    val result = HashMap<Label, BuildTarget>(labelToTargetInfo.size + syncedTargetIdToTargetInfo.size)
-    // first, an existing map, and then a new addition
-    val cursor = labelToTargetInfo.cursor(null)
-    while (cursor.hasNext()) {
-      cursor.next()
-      val target = cursor.value
-      result.put(target.id, target)
-    }
-
-    result.putAll(syncedTargetIdToTargetInfo)
-    return result
-  }
-
   fun getTotalTargetCount() = labelToTargetInfo.size
 
   fun getBuildTargetForLabel(label: Label): BuildTarget? =
@@ -149,13 +131,6 @@ class TargetsCacheStorage(
   fun removeFileToTarget(file: Path) {
     fileToTargets.remove(fileToKey(file))
   }
-
-  fun getTargetForLibraryId(libraryId: String): Label? = 
-    libraryIdToTarget.get(stringToHashId(libraryId))
-
-  fun getTargetForModuleId(libraryId: String): ResolvedLabel? =
-    moduleIdToTarget.get(stringToHashId(libraryId))
-      ?.let { labelToTargetInfo.get(it)?.id as ResolvedLabel? }
 
   fun setTargets(targets: List<BuildTarget>) {
     this.labelToTargetInfo.clear()
@@ -180,7 +155,6 @@ class TargetsCacheStorage(
   fun reset(
     fileToTarget: Map<Path, List<Label>>,
     executableTargets: Map<ResolvedLabel, List<Label>>,
-    libraryToTarget: Map<String, Label>,
     targets: List<BuildTarget>,
   ) {
     val hashStream = Hashing.xxh3_64()
@@ -197,12 +171,6 @@ class TargetsCacheStorage(
       this.targetToExecutableTargets.put(hashStream.computeLabelHash(label), targets.map { hashStream.computeLabelHash(it as ResolvedLabel) })
     }
 
-    this.libraryIdToTarget.clear()
-    for (library in libraryToTarget.entries) {
-      this.libraryIdToTarget.put(stringToHashId(library.key), library.value)
-    }
-
-    this.moduleIdToTarget.clear()
     this.labelToTargetInfo.clear()
     for (target in targets) {
       // must be canonical label
@@ -219,8 +187,6 @@ class TargetsCacheStorage(
           isWorkspace = target.isWorkspace
         ),
       )
-
-      this.moduleIdToTarget.put(stringToHashId(label.formatAsModuleName(project)), labelHash)
     }
   }
 
@@ -230,41 +196,6 @@ class TargetsCacheStorage(
     // close without compaction - close as fast as possible
     store.close()
   }
-}
-
-private fun writeLabel(item: Label, buffer: WriteBuffer) {
-  buffer.writeString(item.toString())
-}
-
-private fun readLabel(buffer: ByteBuffer): Label = Label.parse(buffer.readString())
-
-private fun openIdToLabelMap(
-  store: MVStore,
-  @Suppress("SameParameterValue") name: String
-): MVMap<Long, Label> {
-  val mapBuilder = MVMap.Builder<Long, Label>()
-  mapBuilder.setKeyType(LongDataType.INSTANCE)
-  mapBuilder.setValueType(
-    createAnyValueDataType(
-      writer = { buffer, item ->
-        writeLabel(item, buffer)
-      },
-      reader = {
-        readLabel(it)
-      },
-    ),
-  )
-  return openOrResetMap(store = store, name = name, mapBuilder = mapBuilder, logSupplier = logSupplier)
-}
-
-private fun openIdToIdMap(
-  store: MVStore,
-  @Suppress("SameParameterValue") name: String
-): MVMap<Long, Long> {
-  val mapBuilder = MVMap.Builder<Long, Long>()
-  mapBuilder.setKeyType(LongDataType.INSTANCE)
-  mapBuilder.setValueType(LongDataType.INSTANCE)
-  return openOrResetMap(store = store, name = name, mapBuilder = mapBuilder, logSupplier = logSupplier)
 }
 
 private fun openIdToLabelHashListMap(
@@ -293,10 +224,6 @@ private fun openIdToLabelHashListMap(
   )
   return openOrResetMap(store = store, name = name, mapBuilder = mapBuilder, logSupplier = logSupplier)
 }
-
-private fun stringToHashId(s: String): Long =
-  Hashing.xxh3_64()
-    .hashBytesToLong(s.encodeToByteArray())
 
 private fun computeLabelHash(label: ResolvedLabel): Long =
   Hashing.xxh3_64()

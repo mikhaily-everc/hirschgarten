@@ -10,8 +10,6 @@ import com.intellij.driver.sdk.wait
 import com.intellij.driver.sdk.waitFor
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import com.intellij.ide.starter.driver.execute
-import com.intellij.openapi.ui.playback.commands.AbstractCommand.CMD_PREFIX
-import com.intellij.tools.ide.performanceTesting.commands.CommandChain
 import com.intellij.tools.ide.performanceTesting.commands.openFile
 import com.intellij.tools.ide.performanceTesting.commands.setBreakpoint
 import org.jetbrains.bazel.config.BazelFeatureFlags
@@ -24,7 +22,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * bazel test //plugin-bazel/src/test/kotlin/org/jetbrains/bazel/kotlin/coroutineDebug --jvmopt="-Dbazel.ide.starter.test.cache.directory=$HOME/IdeaProjects/hirschgarten" --sandbox_writable_path=/ --action_env=PATH --java_debug --test_arg=--wrapper_script_flag=--debug=8000
+ * bazel test //plugins/bazel/integrationTests:integrationTests_test --test_env=JB_TEST_FILTER=org.jetbrains.bazel.tests.kotlin.CoroutineDebugTest --test_output=errors --nocache_test_results
  */
 class CoroutineDebugTest : IdeStarterBaseProjectTest() {
 
@@ -37,10 +35,6 @@ class CoroutineDebugTest : IdeStarterBaseProjectTest() {
         ideFrame {
           syncBazelProject()
           waitForIndicators(5.minutes)
-
-          step("Enable Kotlin Coroutine Debug") {
-            execute { it.enableKotlinCoroutineDebug() }
-          }
 
           step("Open TestCoroutine.kt and set breakpoint") {
             execute {
@@ -63,7 +57,9 @@ class CoroutineDebugTest : IdeStarterBaseProjectTest() {
           step("Check if async stack trace is displayed") {
             waitOneContainsText("secondLevel:30", timeout = 1.minutes)
             waitFor(message = "Async stack traces to appear", timeout = 30.seconds, interval = 2.seconds) {
-              x("//div[@class='Splitter']").verticalScrollBar { scrollBlockDown(6) }
+              runCatching {
+                x("//div[@class='Splitter']").verticalScrollBar { scrollBlockDown(6) }
+              }
               val text = x("//div[@class='XDebuggerFramesList']").getAllTexts()
               text.count { it.text.contains("Async stack trace") } >= 2
             }
@@ -73,17 +69,16 @@ class CoroutineDebugTest : IdeStarterBaseProjectTest() {
           step("Check thread dump for coroutine thread") {
             x("//div[@class='JBRunnerTabs']//div[@tooltiptext='More']").click()
             popup().waitOneContainsText("Get Thread Dump").click()
-            waitFor(message = "Thread dump to contain coroutine:2", timeout = 30.seconds, interval = 2.seconds) {
-              x("//div[@class='ThreadDumpPanel']").getAllTexts().any { it.text == "coroutine:2" }
+            val threadDumpPanel = x("//div[@class='ThreadDumpPanel']")
+            threadDumpPanel.waitOneContainsText("Dumped Coroutines").click()
+            waitFor(message = "Thread dump to contain coroutine #2", timeout = 30.seconds, interval = 2.seconds) {
+              threadDumpPanel.getAllTexts().any {
+                it.text.contains("coroutine:2") || it.text.contains("coroutine#2")
+              }
             }
             takeScreenshot("threadDumpPanel")
           }
         }
       }
   }
-}
-
-private fun <T : CommandChain> T.enableKotlinCoroutineDebug(): T {
-  addCommand(CMD_PREFIX + "enableKotlinCoroutineDebug")
-  return this
 }

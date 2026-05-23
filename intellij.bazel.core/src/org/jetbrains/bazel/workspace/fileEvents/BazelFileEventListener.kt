@@ -23,7 +23,6 @@ import com.intellij.platform.workspace.jps.entities.ContentRootEntity
 import com.intellij.platform.workspace.jps.entities.ModuleEntity
 import com.intellij.platform.workspace.jps.entities.ModuleId
 import com.intellij.platform.workspace.jps.entities.SourceRootEntity
-import com.intellij.platform.workspace.jps.entities.SourceRootTypeId
 import com.intellij.platform.workspace.jps.entities.modifyModuleEntity
 import com.intellij.platform.workspace.storage.ImmutableEntityStorage
 import com.intellij.platform.workspace.storage.MutableEntityStorage
@@ -42,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.VisibleForTesting
+import org.jetbrains.bazel.config.BazelFeatureFlags
 import org.jetbrains.bazel.config.BazelPluginBundle
 import org.jetbrains.bazel.config.isBazelProject
 import org.jetbrains.bazel.config.rootDir
@@ -53,30 +53,29 @@ import org.jetbrains.bazel.progress.syncConsole
 import org.jetbrains.bazel.projectAware.BazelProjectAware
 import org.jetbrains.bazel.run.task.BazelBuildTaskListener
 import org.jetbrains.bazel.server.connection.connection
-import org.jetbrains.bazel.settings.bazel.bazelProjectSettings
+import org.jetbrains.bazel.sync.projectStructure.legacy.GENERIC_SOURCE_ROOT_TYPE_ID
 import org.jetbrains.bazel.sync.status.SyncStatusService
 import org.jetbrains.bazel.target.TargetUtils
-import org.jetbrains.bazel.target.moduleEntity
 import org.jetbrains.bazel.target.targetUtils
 import org.jetbrains.bazel.taskEvents.BazelTaskEventsService
+import org.jetbrains.bazel.ui.unsynced.refreshAllFilesPresentation
 import org.jetbrains.bazel.workspace.fileEvents.SimplifiedFileEvent.CreateDirectory
 import org.jetbrains.bazel.workspace.packageMarker.concatenatePackages
 import org.jetbrains.bazel.workspacemodel.entities.BazelDummyEntitySource
 import org.jetbrains.bazel.workspacemodel.entities.PackageMarkerEntity
 import org.jetbrains.bazel.workspacemodel.entities.PackageMarkerEntityBuilder
+import org.jetbrains.bazel.workspacemodel.entities.bazelModuleExtension
 import org.jetbrains.bazel.workspacemodel.entities.packageMarkerEntities
 import org.jetbrains.bsp.protocol.InverseSourcesParams
 import org.jetbrains.bsp.protocol.TaskGroupId
 import org.jetbrains.bsp.protocol.TaskId
 import java.nio.file.Path
-import kotlin.io.path.extension
 import kotlin.io.path.name
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
-@Suppress("UnstableApiUsage")
 @ApiStatus.Internal
-class BazelFileEventListener : BulkFileListenerBackgroundable {
+open class BazelFileEventListener : BulkFileListenerBackgroundable {
   override fun after(events: MutableList<out VFileEvent>) {
     // unit tests trigger file event listeners normally, making them hard to test unless that is disabled
     if (!ApplicationManager.getApplication().isUnitTestMode) {
@@ -103,6 +102,9 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
     }.mapKeys { it.key.locationHash }
   }
 
+  protected open val allowBazelQuery: Boolean
+    get() = BazelFeatureFlags.queryBazelOnFileEvents
+
   /** @return `true` if processing has been performed in this function execution, `false` if it was omitted for any reason */
   private suspend fun processEventsForProject(project: Project, events: List<SimplifiedFileEvent>): Boolean {
     val applicableEvents = events.filterByProject(project).takeIf { it.isNotEmpty() } ?: return false
@@ -117,19 +119,22 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
     val processingJob = jobManager.runFileEventsProcessing {
       BazelCoroutineService.getInstance(project).startAsync(true) {
         delay(PROCESSING_DELAY)
-        do {
-          val processed = queueController.withNextBatch { batch ->
-            try {
-              processEventQueue(project, batch, taskId)
+        try {
+          do {
+            val processed = queueController.withNextBatch { batch ->
+              try {
+                processEventQueue(project, batch, taskId)
+              }
+              catch (ex: Throwable) {
+                if (ex !is CancellationException)
+                  logger.error(ex)
+                throw ex
+              }
             }
-            catch (ex: Throwable) {
-              if (ex !is CancellationException)
-                logger.error(ex)
-              throw ex
-            }
-          }
+          } while (processed)
+        } finally {
+          refreshAllFilesPresentation(project)
         }
-        while (processed)
       }
     }
 
@@ -139,7 +144,7 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
     }
 
     // no need to start sync console task if no Bazel processing is allowed
-    if (project.bazelProjectSettings.allowBazelInvocationOnFileEvents) {
+    if (allowBazelQuery) {
       startSyncConsoleTask(project, processingJob, taskId)
     }
     try {
@@ -296,7 +301,7 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
       }
     // avoid running a Bazel query when not required (BAZEL-2458)
     if (bazelQueryIsRequired) {
-      if (context.project.bazelProjectSettings.allowBazelInvocationOnFileEvents) {
+      if (allowBazelQuery) {
         val targetsByPath =
           context.progressReporter.startQueryStep { queryTargetsForFile(context.project, addedFilePaths, context.taskId) } ?: return
         addFileToTargets(targetsByPath, modulesToRemoveFilesFrom, modulesAlreadyContainingFiles, context)
@@ -339,7 +344,7 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
         val moduleContainsContentRootForRemoval = moduleRemovalsForFile?.remove(module) == true
         val fileAlreadyInModule = modulesAlreadyContainingFile.contains(module)
         if (!moduleContainsContentRootForRemoval && !fileAlreadyInModule) {
-          fileUrl.addToModule(context.entityStorageDiff, module, filePath.extension)
+          addFileToModule(fileUrl, context.entityStorageDiff, module)
         }
       }
       context.targetUtils.addFileToTargetIdEntry(filePath, targets)
@@ -362,14 +367,18 @@ class BazelFileEventListener : BulkFileListenerBackgroundable {
     existingModulesByEvent: Map<SimplifiedFileEvent, Set<ModuleEntity>>,
     context: ProcessingContext,
   ) {
-    allFileEvents.filterIsInstance<CreateDirectory>().filter { existingModulesByEvent[it].isNullOrEmpty() }
+    allFileEvents
+      .filterIsInstance<CreateDirectory>()
+      .filter { existingModulesByEvent[it].isNullOrEmpty() }
       .mapNotNull { createDirectoryEvent ->
-      updatePackageMarkerEntity(createDirectoryEvent, context)
-    }.groupBy({ it.first }, { it.second }).forEach { (moduleEntity, packageMarkerEntities) ->
-      context.entityStorageDiff.modifyModuleEntity(moduleEntity) {
-        this.packageMarkerEntities += packageMarkerEntities
+        updatePackageMarkerEntity(createDirectoryEvent, context)
       }
-    }
+      .groupBy({ it.first }, { it.second })
+      .forEach { (moduleEntity, packageMarkerEntities) ->
+        context.entityStorageDiff.modifyModuleEntity(moduleEntity) {
+          this.packageMarkerEntities += packageMarkerEntities
+        }
+      }
   }
 
   private suspend fun updatePackageMarkerEntity(
@@ -462,12 +471,10 @@ private suspend fun prepareProcessingContext(
 private fun Label.toModuleEntity(storage: ImmutableEntityStorage, project: Project): ModuleEntity? =
   storage.resolve(ModuleId(this.formatAsModuleName(project)))
 
-@Suppress("UnstableApiUsage")
 @RequiresReadLock
 private fun findModulesForFile(newFile: VirtualFile, fileIndex: ProjectFileIndex): Set<ModuleEntity> {
   val modules = fileIndex.getModulesForFile(newFile, true)
-  return modules
-    .mapNotNull { it.moduleEntity }
+  return modules.mapNotNull { it.findModuleEntity() }
     .toSet()
 }
 
@@ -487,7 +494,7 @@ private suspend fun queryTargetsForFile(project: Project, filePaths: List<Path>,
   }
 
 private fun addToPluginModelByModules(filePath: Path, modules: Set<ModuleEntity>, targetUtils: TargetUtils) {
-  val targets = modules.mapNotNull { targetUtils.getTargetForModuleId(it.name) }
+  val targets = modules.mapNotNull { it.bazelModuleExtension }.map { it.label.toLabel() }
   if (targets.isNotEmpty()) {
     targetUtils.addFileToTargetIdEntry(filePath, targets)
   }
@@ -496,35 +503,29 @@ private fun addToPluginModelByModules(filePath: Path, modules: Set<ModuleEntity>
 // the .toUri() conversion is necessary to contain file:// schema, which is present in VirtualFile.toVirtualFileUrl() results
 private fun Path.toVirtualFileUrl(manager: VirtualFileUrlManager): VirtualFileUrl = manager.getOrCreateFromUrl(this.toUri().toString())
 
-private fun VirtualFileUrl.addToModule(
+private fun addFileToModule(
+  url: VirtualFileUrl,
   entityStorageDiff: MutableEntityStorage,
-  module: ModuleEntity,
-  extension: String?,
+  module: ModuleEntity
 ) {
-  if (module.contentRoots.any { it.url == this }) return // we don't want to duplicate content roots
+  if (module.contentRoots.any { it.url == url }) return // we don't want to duplicate content roots
 
-  // TODO: https://youtrack.jetbrains.com/issue/BAZEL-1917
-  val sourceRootType =
-    when (extension) {
-      "java" -> SourceRootTypeId("java-source")
-      "kt" -> SourceRootTypeId("kotlin-source")
-      "py" -> SourceRootTypeId("python-source")
-      else -> {
-        logger.warn("Bazel recognised a file as a source, but we failed to parse its extension: .$extension")
-        SourceRootTypeId("unknown-source")
-      }
-    }
+  // Heuristics: get the source root type based on the exisiting files in module
+  val extension = url.fileName.substringAfterLast(".")
+  val sourceRootType = module.contentRoots.firstOrNull {
+    it.url.fileName.substringAfterLast(".") == extension
+  }?.sourceRoots?.firstOrNull()?.rootTypeId ?: GENERIC_SOURCE_ROOT_TYPE_ID
 
   val sourceRoot =
     SourceRootEntity(
-      url = this,
+      url = url,
       entitySource = module.entitySource,
       rootTypeId = sourceRootType,
     )
 
   val contentRootEntity =
     ContentRootEntity(
-      url = this,
+      url = url,
       excludedPatterns = emptyList(),
       entitySource = module.entitySource,
     ) {

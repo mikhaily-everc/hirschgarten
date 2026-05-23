@@ -27,12 +27,14 @@ import io.kotest.assertions.throwables.shouldNotThrow
 import org.jetbrains.bazel.commons.LanguageClass
 import org.jetbrains.bazel.commons.RuleType
 import org.jetbrains.bazel.commons.TargetKind
+import org.jetbrains.bazel.label.Label
 import org.jetbrains.bazel.workspace.model.matchers.entries.ExpectedModuleEntity
 import org.jetbrains.bazel.workspace.model.matchers.entries.ExpectedSourceRootEntity
 import org.jetbrains.bazel.workspace.model.matchers.entries.shouldBeEqual
 import org.jetbrains.bazel.workspace.model.matchers.entries.shouldContainExactlyInAnyOrder
 import org.jetbrains.bazel.workspace.model.test.framework.WorkspaceModelBaseTest
 import org.jetbrains.bazel.workspace.model.test.framework.createJavaModule
+import org.jetbrains.bazel.workspacemodel.entities.BazelDummyEntitySource
 import org.jetbrains.bazel.workspacemodel.entities.BazelProjectEntitySource
 import org.jetbrains.bazel.workspacemodel.entities.ContentRoot
 import org.jetbrains.bazel.workspacemodel.entities.Dependency
@@ -42,6 +44,7 @@ import org.jetbrains.bazel.workspacemodel.entities.JavaSourceRoot
 import org.jetbrains.bazel.workspacemodel.entities.Library
 import org.jetbrains.bazel.workspacemodel.entities.Module
 import org.jetbrains.bazel.workspacemodel.entities.ResourceRoot
+import org.jetbrains.bsp.protocol.StrictDependencyCheckedType
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -57,6 +60,7 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
         sourceJars = emptyList(),
         classJars = emptyList(),
         mavenCoordinates = null,
+        containerTarget = Label.parse("//lib1")
       ),
       Library(
         displayName = "lib2",
@@ -64,6 +68,7 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
         sourceJars = emptyList(),
         classJars = emptyList(),
         mavenCoordinates = null,
+        containerTarget = Label.parse("//lib2")
       ),
     )
   val testLibrariesByName: Map<String, Library> =
@@ -89,15 +94,18 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
         // given
         val module =
           GenericModuleInfo(
+            label = Label.parse("//module1"),
             name = "module1",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies =
               listOf(
-                Dependency("module2"),
-                Dependency("lib1"),
-                Dependency("module3"),
-                Dependency("lib2"),
+                Dependency("module2", Label.parse("//module2"), exported = true),
+                Dependency("lib1", Label.parse("//lib1"), exported = true),
+                Dependency("module3", Label.parse("//module3"), exported = false),
+                Dependency("lib2", Label.parse("//lib2"), exported = false),
               ),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
@@ -182,13 +190,13 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
                     ),
                     ModuleDependency(
                       module = ModuleId("module3"),
-                      exported = true,
+                      exported = false,
                       scope = DependencyScope.COMPILE,
                       productionOnTest = true,
                     ),
                     LibraryDependency(
                       LibraryId("lib2", LibraryTableId.ProjectLibraryTableId),
-                      exported = true,
+                      exported = false,
                       scope = DependencyScope.COMPILE,
                     ),
                     SdkDependency(SdkId("test-proj-11", "JavaSDK")),
@@ -337,15 +345,18 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
         // given
         val module1 =
           GenericModuleInfo(
+            label = Label.parse("//module1"),
             name = "module1",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies =
               listOf(
-                Dependency("module2"),
-                Dependency("module3"),
-                Dependency("lib1"),
-                Dependency("lib2"),
+                Dependency("module2", Label.parse("//module2"), exported = true),
+                Dependency("module3", Label.parse("//module3"), exported = true),
+                Dependency("lib1", Label.parse("//lib1"), exported = true),
+                Dependency("lib2", Label.parse("//lib2"), exported = true),
               ),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
@@ -405,13 +416,16 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
 
         val module2 =
           GenericModuleInfo(
+            label = Label.parse("//module1"),
             name = "module2",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies =
               listOf(
-                Dependency("module3"),
-                Dependency("lib1"),
+                Dependency("module3", Label.parse("//module3"), exported = true),
+                Dependency("lib1", Label.parse("//lib1"), exported = true),
               ),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
@@ -731,10 +745,13 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
       ) { updater ->
         val module =
           GenericModuleInfo(
+            label = Label.parse("//module1"),
             name = "module1",
             type = ModuleTypeId("JAVA_MODULE"),
             isDummy = true,
             dependencies = emptyList(),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "kt_library",
@@ -756,7 +773,7 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
               generated = true,
               packagePrefix = "com.example.generated",
               rootType = SourceRootTypeId("java-source"),
-            )
+            ),
           )
 
         val javaModule =
@@ -794,12 +811,15 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
             name = "module1",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies = emptyList(),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
                 ruleType = RuleType.LIBRARY,
                 languageClasses = setOf(LanguageClass.JAVA),
               ),
+            label = Label.parse("//module1"),
           )
 
         val baseDirContentRootPath = Path("/root/dir/")
@@ -853,9 +873,12 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
         // given
         val module1 =
           GenericModuleInfo(
+            label = Label.parse("//module1"),
             name = "module1",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies = emptyList(),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
@@ -882,9 +905,12 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
 
         val module2 =
           GenericModuleInfo(
+            label = Label.parse("//module2"),
             name = "module2",
             type = ModuleTypeId("JAVA_MODULE"),
             dependencies = emptyList(),
+            strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+            strictDependencies = emptyList(),
             kind =
               TargetKind(
                 kind = "java_library",
@@ -955,7 +981,8 @@ class JavaModuleUpdaterTest : WorkspaceModelBaseTest() {
   ) = updaters
     .forEach {
       beforeEach()
-      val updater = it(WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, project))
+      val updater =
+        it(WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, BazelDummyEntitySource))
       test(updater)
     }
 }

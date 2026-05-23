@@ -20,8 +20,6 @@ data class BazelProjectSettings @ApiStatus.Internal constructor(
   val projectViewPath: VirtualFile? = null,
   @ApiStatus.Internal internal val buildifierExecutablePath: Path? = null,
   @ApiStatus.Internal val runBuildifierOnSave: Boolean = true,
-  @ApiStatus.Internal val showExcludedDirectoriesAsSeparateNode: Boolean = true,
-  @ApiStatus.Internal val allowBazelInvocationOnFileEvents: Boolean = true,
   // experimental settings
 ) {
   @ApiStatus.Internal
@@ -42,8 +40,6 @@ internal data class BazelProjectSettingsState(
   var projectViewPathUri: String? = null,
   var buildifierExecutablePathUri: String? = null,
   var runBuildifierOnSave: Boolean = true,
-  var showExcludedDirectoriesAsSeparateNode: Boolean = true,
-  var allowBazelInvocationOnFileEvents: Boolean = true,
 ) {
   fun isEmptyState(): Boolean = this == BazelProjectSettingsState()
 }
@@ -64,8 +60,6 @@ internal class BazelProjectSettingsService(val project: Project) :
       projectViewPathUri = settings.projectViewPath?.url,
       buildifierExecutablePathUri = settings.buildifierExecutablePath?.toUri()?.toString(),
       runBuildifierOnSave = settings.runBuildifierOnSave,
-      showExcludedDirectoriesAsSeparateNode = settings.showExcludedDirectoriesAsSeparateNode,
-      allowBazelInvocationOnFileEvents = settings.allowBazelInvocationOnFileEvents,
     )
   }
 
@@ -77,8 +71,6 @@ internal class BazelProjectSettingsService(val project: Project) :
             ?.let { VirtualFileManager.getInstance().findFileByUrl(it) },
           buildifierExecutablePath = settingsState.buildifierExecutablePathUri?.takeIf { it.isNotBlank() }?.let { Paths.get(URI(it)) },
           runBuildifierOnSave = settingsState.runBuildifierOnSave,
-          showExcludedDirectoriesAsSeparateNode = settingsState.showExcludedDirectoriesAsSeparateNode,
-          allowBazelInvocationOnFileEvents = settingsState.allowBazelInvocationOnFileEvents,
         )
     }
   }

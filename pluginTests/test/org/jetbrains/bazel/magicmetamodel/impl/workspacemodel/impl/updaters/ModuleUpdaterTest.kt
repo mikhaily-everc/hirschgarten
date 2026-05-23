@@ -16,17 +16,20 @@ import com.intellij.platform.workspace.jps.entities.SdkId
 import org.jetbrains.bazel.commons.LanguageClass
 import org.jetbrains.bazel.commons.RuleType
 import org.jetbrains.bazel.commons.TargetKind
+import org.jetbrains.bazel.label.Label
 import org.jetbrains.bazel.magicmetamodel.LIBRARY_MODULE_PREFIX
 import org.jetbrains.bazel.workspace.model.matchers.entries.ExpectedModuleEntity
 import org.jetbrains.bazel.workspace.model.matchers.entries.shouldBeEqual
 import org.jetbrains.bazel.workspace.model.matchers.entries.shouldContainExactlyInAnyOrder
 import org.jetbrains.bazel.workspace.model.test.framework.WorkspaceModelBaseTest
 import org.jetbrains.bazel.workspace.model.test.framework.createJavaModule
+import org.jetbrains.bazel.workspacemodel.entities.BazelDummyEntitySource
 import org.jetbrains.bazel.workspacemodel.entities.BazelProjectEntitySource
 import org.jetbrains.bazel.workspacemodel.entities.Dependency
 import org.jetbrains.bazel.workspacemodel.entities.GenericModuleInfo
 import org.jetbrains.bazel.workspacemodel.entities.Library
 import org.jetbrains.bazel.workspacemodel.entities.Module
+import org.jetbrains.bsp.protocol.StrictDependencyCheckedType
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -39,6 +42,7 @@ val testLibraries: List<Library> =
       sourceJars = emptyList(),
       classJars = emptyList(),
       mavenCoordinates = null,
+      containerTarget = Label.parse("//lib1")
     ),
     Library(
       displayName = "lib2",
@@ -46,6 +50,7 @@ val testLibraries: List<Library> =
       sourceJars = emptyList(),
       classJars = emptyList(),
       mavenCoordinates = null,
+      containerTarget = Label.parse("//lib2")
     ),
   )
 val testLibrariesByName: Map<String, Library> =
@@ -74,7 +79,7 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
     super.beforeEach()
 
     val workspaceModelEntityUpdaterConfig =
-      WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, project)
+      WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, BazelDummyEntitySource)
 
     moduleEntityUpdater = ModuleEntityUpdater(workspaceModelEntityUpdaterConfig, defaultDependencies, testModules, testLibrariesByName)
   }
@@ -84,15 +89,18 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
     // given
     val module =
       GenericModuleInfo(
+        label = Label.parse("//module1"),
         name = "module1",
         type = ModuleTypeId("JAVA_MODULE"),
         dependencies =
           listOf(
-            Dependency("module2"),
-            Dependency("lib1"),
-            Dependency("module3"),
-            Dependency("lib2"),
+            Dependency("module2", Label.parse("//module2"), exported = true),
+            Dependency("lib1", Label.parse("//lib1"), exported = true),
+            Dependency("module3", Label.parse("//module3"), exported = true),
+            Dependency("lib2", Label.parse("//lib2"), exported = true),
           ),
+        strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+        strictDependencies = emptyList(),
         kind =
           TargetKind(
             kind = "java_library",
@@ -155,15 +163,18 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
     // given
     val module1 =
       GenericModuleInfo(
+        label = Label.parse("//module1"),
         name = "module1",
         type = ModuleTypeId("JAVA_MODULE"),
         dependencies =
           listOf(
-            Dependency("module2"),
-            Dependency("module3"),
-            Dependency("lib1"),
-            Dependency("lib2"),
+            Dependency("module2", Label.parse("//module2"), exported = true),
+            Dependency("module3", Label.parse("//module3"), exported = true),
+            Dependency("lib1", Label.parse("//lib1"), exported = true),
+            Dependency("lib2", Label.parse("//lib2"), exported = true),
           ),
+        strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+        strictDependencies = emptyList(),
         kind =
           TargetKind(
             kind = "java_library",
@@ -174,13 +185,16 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
 
     val module2 =
       GenericModuleInfo(
+        label = Label.parse("//module2"),
         name = "module2",
         type = ModuleTypeId("JAVA_MODULE"),
         dependencies =
           listOf(
-            Dependency("module3"),
-            Dependency("lib1"),
+            Dependency("module3", Label.parse("//module3"), exported = true),
+            Dependency("lib1", Label.parse("//lib1"), exported = true),
           ),
+        strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+        strictDependencies = emptyList(),
         kind =
           TargetKind(
             kind = "java_library",
@@ -273,15 +287,18 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
     // given
     val module =
       GenericModuleInfo(
+        label = Label.parse("//module1"),
         name = "module1",
         type = ModuleTypeId("JAVA_MODULE"),
         dependencies =
           listOf(
-            Dependency("module2"),
-            Dependency("unknown_module"),
-            Dependency("lib1"),
-            Dependency("unknown_lib"),
+            Dependency("module2", Label.parse("//module2"), exported = true),
+            Dependency("unknown_module", Label.parse("//unknown_module"), exported = true),
+            Dependency("lib1", Label.parse("//lib1"), exported = true),
+            Dependency("unknown_lib", Label.parse("//unknown_lib"), exported = true),
           ),
+        strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+        strictDependencies = emptyList(),
         kind =
           TargetKind(
             kind = "java_library",
@@ -339,18 +356,21 @@ internal class ModuleUpdaterTest : WorkspaceModelBaseTest() {
     )
 
     val workspaceModelEntityUpdaterConfig =
-      WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, project)
+      WorkspaceModelEntityUpdaterConfig(workspaceEntityStorageBuilder, virtualFileUrlManager, projectBasePath, BazelDummyEntitySource)
     val updater = ModuleEntityUpdater(workspaceModelEntityUpdaterConfig, defaultDependencies, modulesWithLibraryModules, testLibrariesByName)
 
     val libraryModule =
       GenericModuleInfo(
+        label = Label.parse("//module1"),
         name = libModuleName1,
         type = ModuleTypeId("JAVA_MODULE"),
         dependencies =
           listOf(
-            Dependency("lib1", isRuntimeOnly = false, exported = true),  // self-dep: library name without prefix
-            Dependency(libModuleName2, isRuntimeOnly = false, exported = true),  // inter-library dep: prefixed name
+            Dependency("lib1", Label.parse("//lib1"), exported = true),  // self-dep: library name without prefix
+            Dependency(libModuleName2, Label.parse("//$libModuleName2"), exported = true),  // inter-library dep: prefixed name
           ),
+        strictDependenciesCheck = StrictDependencyCheckedType.OFF,
+        strictDependencies = emptyList(),
         kind =
           TargetKind(
             kind = "java_library",

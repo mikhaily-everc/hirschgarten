@@ -78,20 +78,12 @@ class BazelBspAspectsManager(
         rulesetName?.let {
           return@mapNotNull RulesetLanguage(ApparentRulesetName(it), language)
         }
-        if (language.isBundled(externalAutoloads)) {
+        if (language.isBundledFor(bazelRelease, externalAutoloads)) {
           return@mapNotNull RulesetLanguage(null, language)
         }
         null
       }.removeDisabledLanguages()
       .addExternalPythonLanguageIfNeeded(externalRulesetNames)
-  }
-
-  private fun Language.isBundled(externalAutoloads: List<String>): Boolean {
-    if (!isBundled) return false
-    // Bundled in Bazel version < 8
-    if (bazelRelease.major < 8) return true
-    // If a language is autoloaded in Bazel version >= 8, it effectively restores the old "bundled" behavior.
-    return (rulesetNames + autoloadHints).any { it in externalAutoloads }
   }
 
   private fun List<RulesetLanguage>.removeDisabledLanguages(): List<RulesetLanguage> {
@@ -218,7 +210,6 @@ class BazelBspAspectsManager(
         aspect(aspectsResolver.resolveLabel(aspect)),
         outputGroups(outputGroups),
         keepGoing(),
-        remoteDownloadOutputsTopLevel(),
       )
     val allowManualTargetsSyncFlags = if (workspaceContext.allowManualTargetsSync) listOf(buildManualTests()) else emptyList()
     val syncFlags = workspaceContext.syncFlags
@@ -231,12 +222,22 @@ class BazelBspAspectsManager(
       taskId = taskId,
     )
 
-    val existingBuildTagFilters = emptyBuild.bepOutput.options.lastOrNull { it.startsWith("--build_tag_filters=") }?.removePrefix("--build_tag_filters=")
+    val options = emptyBuild.bepOutput.options
+    val existingBuildTagFilters = options.lastOrNull { it.startsWith("--build_tag_filters=") }?.removePrefix("--build_tag_filters=")
+    // Ensure remote_download_outputs is at least toplevel so that all required output files are downloaded
+    val remoteDownloadOverride =
+      if (options.lastOrNull { it.startsWith("--remote_download_outputs=") } == "--remote_download_outputs=minimal") {
+        listOf(remoteDownloadOutputsTopLevel())
+      } else {
+        // Do not modify the value if remote_download_outputs is set to a higher value or the default (toplevel) is used
+        emptyList()
+      }
 
     return executeService
       .buildTargetsWithBep(
         targetsSpec = targetsSpec,
-        extraFlags = flagsToUse + listOf("--build_tag_filters=" + existingBuildTagFilters?.let { "$it," }.orEmpty() + "-${Constants.NO_IDE}"),
+        extraFlags = flagsToUse + remoteDownloadOverride +
+          listOf("--build_tag_filters=" + existingBuildTagFilters?.let { "$it," }.orEmpty() + "-${Constants.NO_IDE}"),
         taskId = taskId,
       ).let { BazelBspAspectsManagerResult(it.bepOutput, it.processResult.bazelStatus) }
   }

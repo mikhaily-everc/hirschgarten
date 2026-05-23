@@ -1,10 +1,8 @@
 package org.jetbrains.bazel.config
 
-import com.intellij.openapi.components.service
 import com.intellij.openapi.util.registry.Registry
 import org.jetbrains.annotations.ApiStatus
 import org.jetbrains.annotations.VisibleForTesting
-import org.jetbrains.bazel.sync.environment.BazelApplicationContextService
 
 // FIXME: ideally each module should have its own subset of feature flags
 //  central way of specifying feature flags is wrong
@@ -28,7 +26,7 @@ object BazelFeatureFlags {
 
   @VisibleForTesting
   const val FAST_BUILD_ENABLED = "bazel.enable.jvm.fastbuild"
-  private const val AUTO_OPEN_PROJECT_IF_PRESENT = "bazel.project.auto.open.if.present"
+  const val AUTO_OPEN_PROJECT_IF_PRESENT = "bazel.project.auto.open.if.present"
   private const val ENABLE_BAZEL_QUERY_TAB = "bazel.query.tab.enabled"
   private const val EXCLUDE_SYMLINKS_FROM_FILE_WATCHER_VIA_REFLECTION = "bazel.exclude.symlinks.from.file.watcher.via.reflection"
   private const val SYNTHETIC_RUN_ENABLE = "bazel.run.synthetic.enable"
@@ -39,6 +37,9 @@ object BazelFeatureFlags {
   private const val USE_PTY = "bazel.use.pty"
   private const val SHOW_BAZEL_STDOUT = "bazel.show.stdout"
   private const val HARD_LINK_OUTPUT_FILES = "bazel.hard.link.output.files"
+
+  private const val QUERY_ON_FILE_EVENTS = "bazel.query.on.file.events"
+  private const val HIGHLIGHT_UNSYNCED_SOURCE_FILES = "bazel.highlight.unsynced.source.files"
 
   val isPythonSupportEnabled: Boolean
     get() = isEnabled(PYTHON_SUPPORT)
@@ -102,6 +103,13 @@ object BazelFeatureFlags {
 
   val hardLinkOutputFiles: Boolean
     get() = isEnabled(HARD_LINK_OUTPUT_FILES)
+
+  val queryBazelOnFileEvents: Boolean
+    get() = isEnabled(QUERY_ON_FILE_EVENTS)
+
+  val highlightUnsyncedSourceFiles: Boolean
+    get() = isEnabled(HIGHLIGHT_UNSYNCED_SOURCE_FILES)
+
 
   private fun isEnabled(key: String): Boolean {
     System.getProperty(key)?.let { value ->

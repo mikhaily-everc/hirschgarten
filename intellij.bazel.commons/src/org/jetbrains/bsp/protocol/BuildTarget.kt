@@ -31,6 +31,7 @@ interface BuildTarget : ExecutableTarget {
   val isWorkspace: Boolean
 }
 
+// TODO: move to backend-only code
 @ApiStatus.Internal
 data class RawBuildTarget(
   override val id: Label,
@@ -41,6 +42,7 @@ data class RawBuildTarget(
   override val baseDirectory: Path,
   override val data: List<BuildTargetData> = emptyList(),
   val generatorName: String? = null,
+  val configurationId: String? = null,
   override val isManual: Boolean = false,
   override val isWorkspace: Boolean = true,
 ) : BuildTarget
@@ -98,7 +100,6 @@ data class ScalaBuildTarget(
   val scalacOptions: List<String>,
 ) : BuildTargetData
 
-// TODO: change to interface
 @ClassDiscriminator(4)
 @ApiStatus.Internal
 data class JvmBuildTarget(
@@ -114,7 +115,15 @@ data class JvmBuildTarget(
   val resolvedResourceStripPrefix: Path? = null,
   @Transient @JvmField val libraries: List<LibraryItem> = emptyList(),
   @Transient @JvmField val jvmDependencies: List<JvmDependency> = emptyList(),
+  val checkStrictDependencies: StrictDependencyCheckedType = StrictDependencyCheckedType.OFF,
 ) : BuildTargetData
+
+@ApiStatus.Internal
+enum class StrictDependencyCheckedType {
+  OFF,
+  WARNING,
+  ERROR,
+}
 
 @ApiStatus.Internal
 sealed interface JvmDependency {
@@ -129,7 +138,6 @@ sealed interface JvmDependency {
 data class GoBuildTarget(
   @Transient @JvmField val sdkHomePath: Path? = null,
   val importPath: String,
-  val generatedLibraries: List<Path>,
   val generatedSources: List<Path>,
   val libraryLabels: List<Label>,
 ) : BuildTargetData

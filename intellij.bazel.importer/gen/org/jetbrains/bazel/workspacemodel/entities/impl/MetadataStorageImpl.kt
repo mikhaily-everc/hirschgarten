@@ -16,8 +16,8 @@ internal object MetadataStorageImpl : MetadataStorageBase() {
   override fun initializeMetadata() {
     val primitiveTypeStringNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "String")
     val primitiveTypeIntNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "Int")
-    val primitiveTypeListNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "List")
     val primitiveTypeBooleanNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "Boolean")
+    val primitiveTypeListNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "List")
     val primitiveTypeSetNotNullable = ValueTypeMetadata.SimpleType.PrimitiveType(isNullable = false, type = "Set")
 
     var typeMetadata: StorageTypeMetadata
@@ -128,6 +128,219 @@ internal object MetadataStorageImpl : MetadataStorageBase() {
         ),
         supertypes = listOf("com.intellij.platform.workspace.storage.SymbolicEntityId"),
       )
+
+    addMetadata(typeMetadata)
+
+    typeMetadata = EntityMetadata(
+      fqName = "org.jetbrains.bazel.workspacemodel.entities.BazelLibraryExtensionEntity",
+      entityDataFqName = "org.jetbrains.bazel.workspacemodel.entities.impl.BazelLibraryExtensionEntityData",
+      supertypes = listOf("com.intellij.platform.workspace.storage.WorkspaceEntity"),
+      properties = listOf(
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "entitySource",
+          valueType = ValueTypeMetadata.SimpleType.CustomType(
+            isNullable = false,
+            typeMetadata = FinalClassMetadata.KnownClass(
+              fqName = "com.intellij.platform.workspace.storage.EntitySource",
+            ),
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "library",
+          valueType = ValueTypeMetadata.EntityReference(
+            connectionType = ConnectionId.ConnectionType.ONE_TO_ONE,
+            entityFqName = "com.intellij.platform.workspace.jps.entities.LibraryEntity",
+            isChild = false,
+            isNullable = false,
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "label",
+          valueType = ValueTypeMetadata.SimpleType.CustomType(
+            isNullable = false,
+            typeMetadata = FinalClassMetadata.ClassMetadata(
+              fqName = "org.jetbrains.bazel.workspacemodel.entities.WorkspaceModelTargetLabel",
+              properties = listOf(
+                OwnPropertyMetadata(
+                  isComputable = false,
+                  isKey = false,
+                  isOpen = false,
+                  name = "label",
+                  valueType = primitiveTypeStringNotNullable,
+                  withDefault = false,
+                ),
+              ),
+              supertypes = listOf(),
+            ),
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "isSynthetic",
+          valueType = primitiveTypeBooleanNotNullable,
+          withDefault = false,
+        ),
+      ),
+      extProperties = listOf(
+        ExtPropertyMetadata(
+          isComputable = false,
+          isOpen = false,
+          name = "bazelLibraryExtension",
+          receiverFqn = "com.intellij.platform.workspace.jps.entities.LibraryEntity",
+          valueType = ValueTypeMetadata.EntityReference(
+            connectionType = ConnectionId.ConnectionType.ONE_TO_ONE,
+            entityFqName = "org.jetbrains.bazel.workspacemodel.entities.BazelLibraryExtensionEntity",
+            isChild = true,
+            isNullable = true,
+          ),
+          withDefault = false,
+        ),
+      ),
+      isAbstract = false,
+    )
+
+    addMetadata(typeMetadata)
+
+    typeMetadata = EntityMetadata(
+      fqName = "org.jetbrains.bazel.workspacemodel.entities.BazelModuleExtensionEntity",
+      entityDataFqName = "org.jetbrains.bazel.workspacemodel.entities.impl.BazelModuleExtensionEntityData",
+      supertypes = listOf("com.intellij.platform.workspace.storage.WorkspaceEntity"),
+      properties = listOf(
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "entitySource",
+          valueType = ValueTypeMetadata.SimpleType.CustomType(
+            isNullable = false,
+            typeMetadata = FinalClassMetadata.KnownClass(
+              fqName = "com.intellij.platform.workspace.storage.EntitySource",
+            ),
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "module",
+          valueType = ValueTypeMetadata.EntityReference(
+            connectionType = ConnectionId.ConnectionType.ONE_TO_ONE,
+            entityFqName = "com.intellij.platform.workspace.jps.entities.ModuleEntity",
+            isChild = false,
+            isNullable = false,
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "label",
+          valueType = ValueTypeMetadata.SimpleType.CustomType(
+            isNullable = false,
+            typeMetadata = FinalClassMetadata.ClassMetadata(
+              fqName = "org.jetbrains.bazel.workspacemodel.entities.WorkspaceModelTargetLabel",
+              properties = listOf(
+                OwnPropertyMetadata(
+                  isComputable = false,
+                  isKey = false,
+                  isOpen = false,
+                  name = "label",
+                  valueType = primitiveTypeStringNotNullable,
+                  withDefault = false,
+                ),
+              ),
+              supertypes = listOf(),
+            ),
+          ),
+          withDefault = false,
+        ),
+        OwnPropertyMetadata(
+          isComputable = false,
+          isKey = false,
+          isOpen = false,
+          name = "strictDependencies",
+          valueType = ValueTypeMetadata.SimpleType.CustomType(
+            isNullable = false,
+            typeMetadata = FinalClassMetadata.ClassMetadata(
+              fqName = "org.jetbrains.bazel.workspacemodel.entities.WorkspaceModelTargetLabelList",
+              properties = listOf(
+                OwnPropertyMetadata(
+                  isComputable = false,
+                  isKey = false,
+                  isOpen = false,
+                  name = "check",
+                  valueType = ValueTypeMetadata.SimpleType.CustomType(
+                    isNullable = false,
+                    typeMetadata = FinalClassMetadata.EnumClassMetadata(
+                      fqName = "org.jetbrains.bsp.protocol.StrictDependencyCheckedType",
+                      properties = listOf(),
+                      supertypes = listOf(
+                        "java.io.Serializable",
+                        "kotlin.Comparable",
+                        "kotlin.Enum",
+                      ),
+                      values = listOf(
+                        "ERROR",
+                        "OFF",
+                        "WARNING",
+                      ),
+                    ),
+                  ),
+                  withDefault = false,
+                ),
+                OwnPropertyMetadata(
+                  isComputable = false,
+                  isKey = false,
+                  isOpen = false,
+                  name = "labels",
+                  valueType = ValueTypeMetadata.SimpleType.CustomType(
+                    isNullable = false,
+                    typeMetadata = FinalClassMetadata.KnownClass(
+                      fqName = "kotlin.Array",
+                    ),
+                  ),
+                  withDefault = false,
+                ),
+              ),
+              supertypes = listOf(),
+            ),
+          ),
+          withDefault = false,
+        ),
+      ),
+      extProperties = listOf(
+        ExtPropertyMetadata(
+          isComputable = false,
+          isOpen = false,
+          name = "bazelModuleExtension",
+          receiverFqn = "com.intellij.platform.workspace.jps.entities.ModuleEntity",
+          valueType = ValueTypeMetadata.EntityReference(
+            connectionType = ConnectionId.ConnectionType.ONE_TO_ONE,
+            entityFqName = "org.jetbrains.bazel.workspacemodel.entities.BazelModuleExtensionEntity",
+            isChild = true,
+            isNullable = true,
+          ),
+          withDefault = false,
+        ),
+      ),
+      isAbstract = false,
+    )
 
     addMetadata(typeMetadata)
 
@@ -793,6 +1006,8 @@ internal object MetadataStorageImpl : MetadataStorageBase() {
   }
 
   override fun initializeMetadataHash() {
+    addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.BazelLibraryExtensionEntity", metadataHash = -2026061674)
+    addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.BazelModuleExtensionEntity", metadataHash = 1807510791)
     addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.BazelProjectDirectoriesEntity", metadataHash = 1532901196)
     addMetadataHash(
       typeFqn = "org.jetbrains.bazel.workspacemodel.entities.CompiledSourceCodeInsideJarExcludeEntity",
@@ -805,6 +1020,9 @@ internal object MetadataStorageImpl : MetadataStorageBase() {
     )
     addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.PackageMarkerEntity", metadataHash = -1844349399)
     addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.ScalaAddendumEntity", metadataHash = 950673911)
+    addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.WorkspaceModelTargetLabel", metadataHash = -582088477)
+    addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.WorkspaceModelTargetLabelList", metadataHash = -443902307)
+    addMetadataHash(typeFqn = "org.jetbrains.bsp.protocol.StrictDependencyCheckedType", metadataHash = -2089160899)
     addMetadataHash(typeFqn = "org.jetbrains.bazel.workspacemodel.entities.CompiledSourceCodeInsideJarExcludeId", metadataHash = -914279954)
     addMetadataHash(typeFqn = "com.intellij.platform.workspace.jps.entities.LibraryId", metadataHash = 1783065412)
     addMetadataHash(typeFqn = "com.intellij.platform.workspace.jps.entities.LibraryTableId", metadataHash = 1939585583)

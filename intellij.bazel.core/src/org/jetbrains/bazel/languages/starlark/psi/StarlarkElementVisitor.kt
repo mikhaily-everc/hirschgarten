@@ -121,11 +121,11 @@ open class StarlarkElementVisitor : PsiElementVisitor() {
     visitElement(node)
   }
 
-  internal fun visitForStatement(node: StarlarkForStatement) {
+  internal open fun visitForStatement(node: StarlarkForStatement) {
     visitElement(node)
   }
 
-  internal fun visitFunctionDeclaration(node: StarlarkFunctionDeclaration) {
+  internal open fun visitFunctionDeclaration(node: StarlarkFunctionDeclaration) {
     visitElement(node)
   }
 
@@ -133,7 +133,7 @@ open class StarlarkElementVisitor : PsiElementVisitor() {
     visitElement(node)
   }
 
-  internal fun visitIfStatement(node: StarlarkIfStatement) {
+  internal open fun visitIfStatement(node: StarlarkIfStatement) {
     visitElement(node)
   }
 
@@ -157,7 +157,7 @@ open class StarlarkElementVisitor : PsiElementVisitor() {
     visitElement(node)
   }
 
-  internal fun visitLoadStatement(node: StarlarkLoadStatement) {
+  internal open fun visitLoadStatement(node: StarlarkLoadStatement) {
     visitElement(node)
   }
 

@@ -3,11 +3,16 @@ package org.jetbrains.bazel.magicmetamodel.impl.workspacemodel.impl.updaters.tra
 import com.intellij.platform.workspace.jps.entities.SourceRootTypeId
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import org.jetbrains.annotations.TestOnly
 import org.jetbrains.bazel.commons.LanguageClass
+import org.jetbrains.bazel.commons.RepoMappingDisabled
 import org.jetbrains.bazel.commons.RuleType
 import org.jetbrains.bazel.commons.TargetKind
+import org.jetbrains.bazel.config.bazelProjectName
 import org.jetbrains.bazel.label.DependencyLabel
 import org.jetbrains.bazel.label.Label
+import org.jetbrains.bazel.sync.workspace.languages.java.sourceRoot.JvmPackagePrefixes
+import org.jetbrains.bazel.workspace.indexAdditionalFiles.ProjectViewGlobSet
 import org.jetbrains.bazel.workspace.model.test.framework.WorkspaceModelBaseTest
 import org.jetbrains.bazel.workspace.model.test.framework.createJavaModule
 import org.jetbrains.bazel.workspace.model.test.framework.createModuleDetails
@@ -18,9 +23,11 @@ import org.jetbrains.bazel.workspacemodel.entities.JavaAddendum
 import org.jetbrains.bazel.workspacemodel.entities.JavaSourceRoot
 import org.jetbrains.bazel.workspacemodel.entities.KotlinAddendum
 import org.jetbrains.bazel.workspacemodel.entities.ResourceRoot
+import org.jetbrains.bsp.protocol.BuildTarget
 import org.jetbrains.bsp.protocol.BuildTargetData
 import org.jetbrains.bsp.protocol.JvmBuildTarget
 import org.jetbrains.bsp.protocol.KotlinBuildTarget
+import org.jetbrains.bsp.protocol.PartialBuildTarget
 import org.jetbrains.bsp.protocol.RawBuildTarget
 import org.jetbrains.bsp.protocol.SourceItem
 import org.jetbrains.bsp.protocol.utils.extractJvmBuildTarget
@@ -64,17 +71,17 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
         languageClasses = setOf(LanguageClass.JAVA),
       ),
       baseDirectory = projectRoot,
-      data = listOf(JvmBuildTarget(javaHome, javaVersion)),
+      data = listOf(
+        JvmBuildTarget(javaHome, javaVersion),
+      ),
       sources = listOf(
         SourceItem(
           path = file1APath,
           generated = false,
-          jvmPackagePrefix = "${packageA1Path.name}.${packageA2Path.name}",
         ),
         SourceItem(
           path = file2APath,
           generated = false,
-          jvmPackagePrefix = "${packageA1Path.name}.${packageA2Path.name}",
         ),
       ),
       resources = listOf(resourceFilePath),
@@ -97,15 +104,26 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
         targetsMap,
         emptyMap(),
         projectBasePath,
-        project,
+        RepoMappingDisabled,
+        projectName = project.bazelProjectName,
+        testSourcesGlob = ProjectViewGlobSet.EMPTY,
+        MockJvmPrefixCalculator(
+          buildTargetId to JvmPackagePrefixes(
+            mapOf(
+              file1APath to "${packageA1Path.name}.${packageA2Path.name}",
+              file2APath to "${packageA1Path.name}.${packageA2Path.name}",
+            ),
+          ),
+        ),
       ).transform(moduleDetails).first()
 
     // then
     val expectedJavaModule = createJavaModule(
       name = "module1.module1",
+      label = buildTargetId,
       dependencies = listOf(
-        Dependency("module2.module2"),
-        Dependency("module3.module3"),
+        Dependency("module2.module2", Label.parse("module2"), ),
+        Dependency("module3.module3", Label.parse("module3"), ),
       ),
       kind = TargetKind(
         kind = "java_binary",
@@ -193,15 +211,19 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
         targetsMap,
         emptyMap(),
         projectBasePath,
-        project,
+        RepoMappingDisabled,
+        projectName = project.bazelProjectName,
+        testSourcesGlob = ProjectViewGlobSet.EMPTY,
+        MockJvmPrefixCalculator(),
       ).transform(moduleDetails).first()
 
     // then
     val expectedJavaModule = createJavaModule(
       name = "module1.module1",
+      label = buildTargetId,
       dependencies = listOf(
-        Dependency("module2.module2"),
-        Dependency("module3.module3"),
+        Dependency("module2.module2", Label.parse("module2"), ),
+        Dependency("module3.module3", Label.parse("module3"), ),
       ),
       associates = listOf(
         "module4.module4",
@@ -257,12 +279,10 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
         SourceItem(
           path = file1APath,
           generated = false,
-          jvmPackagePrefix = "${packageA1Path.name}.${packageA2Path.name}",
         ),
         SourceItem(
           path = file2APath,
           generated = false,
-          jvmPackagePrefix = "${packageA1Path.name}.${packageA2Path.name}",
         ),
       ),
       resources = listOf(resourceFilePath11, resourceFilePath12),
@@ -301,7 +321,6 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
         SourceItem(
           path = dir1CPath,
           generated = false,
-          jvmPackagePrefix = "${packageC1Path.name}.${packageC2Path.name}",
         ),
       ),
       resources = listOf(resourceDirPath21),
@@ -323,16 +342,32 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
           targetsMap,
           emptyMap(),
           projectBasePath,
-          project,
+          RepoMappingDisabled,
+          projectName = project.bazelProjectName,
+          testSourcesGlob = ProjectViewGlobSet.EMPTY,
+          MockJvmPrefixCalculator(
+            buildTargetId1 to JvmPackagePrefixes(
+              mapOf(
+                file1APath to "${packageA1Path.name}.${packageA2Path.name}",
+                file2APath to "${packageA1Path.name}.${packageA2Path.name}",
+              ),
+            ),
+            buildTargetId2 to JvmPackagePrefixes(
+              mapOf(
+                dir1CPath to "${packageC1Path.name}.${packageC2Path.name}",
+              ),
+            )
+          ),
         ).transform(entity).first()
       }
 
     // then
     val expectedJavaModule1 = createJavaModule(
       name = "module1.module1",
+      label = buildTargetId1,
       dependencies = listOf(
-        Dependency("module2.module2"),
-        Dependency("module3.module3"),
+        Dependency("module2.module2", Label.parse("module2"), ),
+        Dependency("module3.module3", Label.parse("module3"), ),
       ),
       kind = TargetKind(
         kind = "java_library",
@@ -362,8 +397,9 @@ class ModuleDetailsToJavaModuleTransformerTest : WorkspaceModelBaseTest() {
 
     val expectedJavaModule2 = createJavaModule(
       name = "module2.module2",
+      label = buildTargetId2,
       dependencies = listOf(
-        Dependency("module3.module3"),
+        Dependency("module3.module3", Label.parse("module3"), ),
       ),
       kind = TargetKind(
         kind = "java_test",
@@ -443,3 +479,23 @@ class ExtractJvmBuildTargetTest {
     return buildTarget
   }
 }
+
+@TestOnly
+internal fun Collection<String>.toDefaultTargetsMap(): Map<Label, BuildTarget> =
+  associateBy(
+    keySelector = { Label.parse(it) },
+    valueTransform = {
+      PartialBuildTarget(
+        id = Label.parse(it),
+        kind =
+          TargetKind(
+            kind = "java_library",
+            ruleType = RuleType.LIBRARY,
+            languageClasses = emptySet(),
+          ),
+        baseDirectory = Path("base/dir"),
+        isManual = false,
+        isWorkspace = true,
+      )
+    },
+  )

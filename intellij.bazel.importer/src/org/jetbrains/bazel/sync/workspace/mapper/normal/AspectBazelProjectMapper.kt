@@ -20,6 +20,7 @@ import org.jetbrains.bazel.sync.workspace.BazelResolvedWorkspace
 import org.jetbrains.bazel.sync.workspace.graph.DependencyGraph
 import org.jetbrains.bazel.sync.workspace.languages.createLanguageProjectMappers
 import org.jetbrains.bazel.sync.workspace.mapper.BazelResolvedWorkspaceBuilder
+import org.jetbrains.bazel.sync.workspace.snapshot.WorkspaceSnapshot
 import org.jetbrains.bazel.sync.workspace.targetKind.TargetKindService
 import org.jetbrains.bsp.protocol.BazelServerFacade
 import org.jetbrains.bsp.protocol.BuildTargetData
@@ -65,6 +66,7 @@ internal class AspectBazelProjectMapper(
     }
 
     return BazelResolvedWorkspaceBuilder.build(
+      rootTargets = rootTargets,
       targets = rawTargets,
       hasError = hasError,
     )
@@ -81,11 +83,11 @@ internal class AspectBazelProjectMapper(
         targetsToImport.values.map { target ->
           async {
             createRawBuildTarget(
-              target,
-              targetsToImport,
-              repoMapping,
-              dependencyGraph,
-              localRepositories,
+              target = target,
+              targetsToImport = targetsToImport,
+              repoMapping = repoMapping,
+              dependencyGraph = dependencyGraph,
+              localRepositories = localRepositories,
             )
           }
         }
@@ -103,7 +105,6 @@ internal class AspectBazelProjectMapper(
   ): RawBuildTarget {
     val label = target.label().assumeResolved()
     val targetKind = TargetKindService.getInstance().fromTargetInfo(target)
-    var sources = resolveSourceSet(target, repoMapping).toList()
     val baseDirectory = bazelPathsResolver.toDirectoryPath(label, repoMapping)
     val localRepositories = repoMapping.getLocalRepositories()
 
@@ -112,7 +113,6 @@ internal class AspectBazelProjectMapper(
     targetKind.languageClasses.map { lang ->
       langMappers.get(lang)
     }.distinct().forEach { mapper ->
-      sources = mapper.transformSources(sources)
       buildData.addAll(mapper.createBuildTargetData(target, targetsToImport, dependencyGraph, repoMapping))
     }
 
@@ -120,9 +120,10 @@ internal class AspectBazelProjectMapper(
 
     return RawBuildTarget(
       id = label,
+      configurationId = target.key.configuration,
       dependencies = target.depsList.map { it.toDependencyLabel() },
       kind = targetKind,
-      sources = sources,
+      sources = resolveSourceSet(target, repoMapping).toList(),
       resources = resources,
       baseDirectory = baseDirectory,
       data = buildData,
