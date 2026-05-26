@@ -46,7 +46,6 @@ class GroovyLanguagePlugin : JvmLanguagePluginMixin {
     override suspend fun createBuildTargetData(
       target: TargetInfo,
       targetsToImport: Map<Label, TargetInfo>,
-      graph: DependencyGraph,
       repoMapping: RepoMapping,
     ): List<BuildTargetData> = emptyList()
   }
