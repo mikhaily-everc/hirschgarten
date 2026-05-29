@@ -4,6 +4,7 @@ import com.google.common.hash.Hashing
 import com.google.devtools.build.lib.view.proto.Deps
 import com.intellij.openapi.extensions.ExtensionPointName
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Ref
 import com.intellij.util.EnvironmentUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -48,7 +49,6 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.collections.mapNotNull
 import kotlin.io.path.exists
 import kotlin.io.path.extension
 import kotlin.io.path.inputStream
@@ -226,6 +226,8 @@ class JavaLanguagePlugin: LanguagePlugin {
       repoMapping: RepoMapping,
     ) {
       val localRepositories = repoMapping.getLocalRepositories()
+      // Avoid creating the same LibraryItem instance several times to avoid O(N^2) (BAZEL-3203)
+      val libraryItemByIdCache = hashMapOf<Label, Ref<LibraryItem?>>()
 
       val importDependenciesAsLibraries: Map<Label, List<LibraryItem>> =
         targetsToImport.mapValues { (_, target) ->
@@ -238,13 +240,17 @@ class JavaLanguagePlugin: LanguagePlugin {
               val libTargetInfo = graph.idToTargetInfo[label]
                                   ?: return@mapNotNull null
 
-              createLibrary(
-                server.workspaceContext,
-                label,
-                libTargetInfo,
-                onlyOutputJars = false,
-                localRepositories,
-              )
+              libraryItemByIdCache.getOrPut(label) {
+                Ref(
+                  createLibrary(
+                    server.workspaceContext,
+                    label,
+                    libTargetInfo,
+                    onlyOutputJars = false,
+                    localRepositories,
+                  ),
+                )
+              }.get()
             }
         }
 
@@ -419,7 +425,7 @@ class JavaLanguagePlugin: LanguagePlugin {
           targetInfo.key.label to
             createLibrary(
               id = Label.synthetic(targetInfo.key.label + "_generated"),
-              dependencies = emptyList(),
+              ijars = emptySet(),
               jars = targetInfo.javaCommon.generatedJarsList
                 .flatMap { it.binaryJarsList }
                 .map { bazelPathsResolver.resolve(it, localRepositories) }
@@ -463,7 +469,7 @@ class JavaLanguagePlugin: LanguagePlugin {
             libraryNameToLibraryValueMap.getOrPut(label) {
               createLibrary(
                 id = label,
-                dependencies = emptyList(),
+                ijars = emptySet(),
                 jars = setOf(it),
                 sourceJars = emptySet(),
               )
@@ -647,7 +653,6 @@ class JavaLanguagePlugin: LanguagePlugin {
 
       return createLibrary(
         id = label,
-        dependencies = targetInfo.dependencies(),
         ijars = interfaceJars,
         jars = outputs,
         sourceJars = sources,
@@ -658,16 +663,14 @@ class JavaLanguagePlugin: LanguagePlugin {
 
     private fun createLibrary(
       id: Label,
-      dependencies: List<DependencyLabel>,
-      ijars: Set<Path> = emptySet(),
-      jars: Set<Path>,
-      sourceJars: Set<Path>,
+      ijars: Collection<Path>,
+      jars: Collection<Path>,
+      sourceJars: Collection<Path>,
       mavenCoordinates: MavenCoordinates? = null,
       containsInternalJars: Boolean = false,
     ): LibraryItem {
       return LibraryItem(
         id = id,
-        dependencies = dependencies,
         ijars = ijars.toList(),
         jars = jars.toList(),
         sourceJars = sourceJars.toList(),

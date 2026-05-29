@@ -1,4 +1,4 @@
-<idea-plugin visibility="public" xmlns:xi="http://www.w3.org/2001/XInclude">
+<idea-plugin visibility="public">
 
   <!-- Don't use <xi:include> here, it can't be compiled by open source hirschgarten rules -->
   <extensionPoints>
@@ -42,10 +42,6 @@
                     interface="org.jetbrains.bazel.run.test.BazelTestLocatorProvider"
                     dynamic="true"
     />
-    <extensionPoint qualifiedName="org.jetbrains.bazel.indexAdditionalFilesContributor"
-                    interface="org.jetbrains.bazel.workspace.indexAdditionalFiles.IndexAdditionalFilesContributor"
-                    dynamic="true"
-    />
     <extensionPoint qualifiedName="org.jetbrains.bazel.bzlmodResolver"
                     interface="org.jetbrains.bazel.languages.starlark.bazel.bzlmod.BazelModuleResolver"
                     dynamic="true"
@@ -55,9 +51,6 @@
                     beanClass="com.intellij.lang.LanguageExtensionPoint">
       <with attribute="implementationClass" implements="org.jetbrains.bazel.run.synthetic.SyntheticRunTargetTemplateGenerator"/>
     </extensionPoint>
-    <extensionPoint qualifiedName="org.jetbrains.bazel.loadedTargetActionsProvider"
-                    interface="org.jetbrains.bazel.ui.widgets.tool.window.utils.LoadedTargetActionsProvider"
-                    dynamic="true"/>
   </extensionPoints>
 
   <resource-bundle>messages.BazelPluginBundle</resource-bundle>
@@ -107,6 +100,7 @@
       order="after DirectoriesSyncHook"
     />
 
+    <projectPostSyncHook implementation="org.jetbrains.bazel.workspace.CleanupLabelsCacheSyncHook"/>
     <projectPostSyncHook implementation="org.jetbrains.bazel.ui.widgets.fileTargets.BazelFileTargetsWidgetSyncHook"/>
     <projectPostSyncHook implementation="org.jetbrains.bazel.flow.sync.RemoveExcludedVcsMappingsSyncHook"/>
     <projectPostSyncHook implementation="org.jetbrains.bazel.workspace.SyncCacheClearProjectSyncHook"/>
@@ -136,6 +130,8 @@
     <runConfigurationProducerSuppressor implementation="org.jetbrains.bazel.run.BazelRunConfigurationProducerSuppressor"/>
     <runConfigurationProducer implementation="org.jetbrains.bazel.run.test.BazelRerunTestConfigurationProducer"/>
     <stepsBeforeRunProvider implementation="org.jetbrains.bazel.run.synthetic.GenerateSyntheticTargetRunTaskProvider"/>
+
+    <vfs.asyncListener implementation="org.jetbrains.bazel.flow.exclude.BazelSymlinkExcludeFileListener"/>
 
     <projectService serviceImplementation="org.jetbrains.bazel.languages.starlark.repomapping.BazelRepoMappingServiceAdapter"
                     serviceInterface="org.jetbrains.bazel.workspace.BazelRepoMappingService"/>
@@ -312,6 +308,14 @@
       implementationClass="org.jetbrains.bazel.languages.starlark.findusages.StarlarkFindUsagesProvider"
       language="Starlark"
     />
+    <targetElementEvaluator
+      language="Starlark"
+      implementationClass="org.jetbrains.bazel.languages.starlark.findusages.BazelRuleTargetCallElementEvaluator"
+    />
+    <lang.documentationProvider
+      language="Starlark"
+      implementationClass="org.jetbrains.bazel.languages.starlark.documentation.BazelTargetDocumentationProvider"
+    />
     <lang.elementManipulator
       forClass="org.jetbrains.bazel.languages.starlark.psi.expressions.StarlarkStringLiteralExpression"
       implementationClass="org.jetbrains.bazel.languages.starlark.rename.StarlarkStringLiteralManipulator"
@@ -421,6 +425,22 @@
                      enabledByDefault="true"
                      level="ERROR"
                      implementationClass="org.jetbrains.bazel.languages.starlark.inspection.StarlarkLoadPlacementInspection"/>
+
+    <localInspection language="Starlark"
+                     key="inspection.display.name.starlark.load.private.symbol.check"
+                     groupPath="Bazel"
+                     groupKey="starlark.inspection.group.name"
+                     enabledByDefault="true"
+                     level="ERROR"
+                     implementationClass="org.jetbrains.bazel.languages.starlark.inspection.StarlarkLoadPrivateSymbolInspection"/>
+
+    <localInspection language="Starlark"
+                     key="inspection.display.name.starlark.load.duplicate.symbols.check"
+                     groupPath="Bazel"
+                     groupKey="starlark.inspection.group.name"
+                     enabledByDefault="true"
+                     level="ERROR"
+                     implementationClass="org.jetbrains.bazel.languages.starlark.inspection.StarlarkLoadDuplicateSymbolsInspection"/>
 
     <fileType
       extensions="bazelquery"
@@ -561,6 +581,10 @@
     <editorNotificationProvider implementation="org.jetbrains.bazel.ui.unsynced.UnsyncedSourceFileNotificationProvider"/>
     <referencesSearch implementation="org.jetbrains.bazel.languages.starlark.findusages.StarlarkStringUsageSearcher"/>
     <referencesSearch implementation="org.jetbrains.bazel.languages.starlark.findusages.StarlarkFileUsageSearcher"/>
+    <referencesSearch implementation="org.jetbrains.bazel.languages.starlark.findusages.BazelTargetReferenceSearcher"/>
+    <findUsagesHandlerFactory implementation="org.jetbrains.bazel.languages.starlark.findusages.BazelTargetFindUsagesHandlerFactory"/>
+    <renamePsiElementProcessor implementation="org.jetbrains.bazel.languages.starlark.rename.BazelTargetRenamePsiElementProcessor"/>
+    <renameInputValidator implementation="org.jetbrains.bazel.languages.starlark.rename.BazelTargetRenameInputValidator"/>
     <usageTypeProvider implementation="org.jetbrains.bazel.languages.starlark.findusages.StarlarkUsageTypeProvider"/>
     <xdebugger.breakpointType implementation="org.jetbrains.bazel.debug.platform.StarlarkBreakpointType"/>
     <programRunner implementation="org.jetbrains.bazel.debug.configuration.StarlarkDebugRunner"/>
@@ -709,10 +733,6 @@
   </actions>
 
   <applicationListeners>
-    <listener
-      class="org.jetbrains.bazel.flow.exclude.BazelSymlinkExcludeFileListener"
-      topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"
-    />
     <listener
       class="org.jetbrains.bazel.workspace.fileEvents.BazelFileEventListener"
       topic="com.intellij.openapi.vfs.newvfs.BulkFileListenerBackgroundable"

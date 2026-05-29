@@ -1,5 +1,9 @@
 package org.jetbrains.bazel.python.sync
 
+import com.intellij.bazel.python.backend.chooseSdkName
+import com.intellij.openapi.application.edtWriteAction
+import com.intellij.openapi.diagnostic.fileLogger
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.platform.backend.workspace.WorkspaceModel
 import com.intellij.platform.util.progress.reportSequentialProgress
 import com.intellij.platform.workspace.jps.entities.ContentRootEntity
@@ -16,38 +20,44 @@ import com.intellij.platform.workspace.jps.entities.SourceRootTypeId
 import com.intellij.platform.workspace.storage.MutableEntityStorage
 import com.intellij.platform.workspace.storage.impl.url.toVirtualFileUrl
 import com.intellij.platform.workspace.storage.url.VirtualFileUrlManager
+import com.intellij.python.community.services.systemPython.SystemPythonService
+import com.intellij.testFramework.common.timeoutRunBlocking
+import com.jetbrains.python.PythonBinary
+import com.jetbrains.python.sdk.PythonSdkUtil
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.bazel.commons.LanguageClass
+import org.jetbrains.bazel.commons.RepoMappingDisabled
 import org.jetbrains.bazel.commons.RuleType
 import org.jetbrains.bazel.commons.TargetKind
 import org.jetbrains.bazel.label.DependencyLabel
 import org.jetbrains.bazel.label.Label
 import org.jetbrains.bazel.magicmetamodel.formatAsModuleName
+import org.jetbrains.bazel.progress.syncConsole
 import org.jetbrains.bazel.project.BazelProjectFixtures.initializeBazelProject
-import org.jetbrains.bazel.sync.ProjectSyncHook
-import org.jetbrains.bazel.sync.scope.SecondPhaseSync
 import org.jetbrains.bazel.sync.workspace.BazelResolvedWorkspace
-import org.jetbrains.bazel.sync.workspace.mapper.BazelResolvedWorkspaceBuilder
+import org.jetbrains.bazel.sync.workspace.importer.WorkspaceImporterHelper
+import org.jetbrains.bazel.sync.workspace.snapshot.WorkspaceSnapshot
+import org.jetbrains.bazel.sync.workspace.snapshot.WorkspaceSnapshotBuilder
 import org.jetbrains.bazel.workspace.model.matchers.entries.ExpectedModuleEntity
 import org.jetbrains.bazel.workspace.model.matchers.entries.ExpectedSourceRootEntity
 import org.jetbrains.bazel.workspace.model.matchers.entries.shouldContainExactlyInAnyOrder
-import org.jetbrains.bazel.workspace.model.test.framework.BazelWorkspaceResolveServiceMock
-import org.jetbrains.bazel.workspace.model.test.framework.BuildServerMock
 import org.jetbrains.bazel.workspace.model.test.framework.MockProjectBaseTest
+import org.jetbrains.bazel.workspace.model.test.framework.mockWorkspaceContext
 import org.jetbrains.bazel.workspacemodel.entities.BazelProjectEntitySource
 import org.jetbrains.bsp.protocol.PythonBuildTarget
 import org.jetbrains.bsp.protocol.RawBuildTarget
 import org.jetbrains.bsp.protocol.SourceItem
 import org.jetbrains.bsp.protocol.TaskGroupId
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.nio.file.Path
 import kotlin.io.path.Path
 
 private data class PythonTestSet(
-  val workspace: BazelResolvedWorkspace,
+  val workspaceSnapshot: WorkspaceSnapshot,
   val expectedModuleEntities: List<ExpectedModuleEntity>,
   val expectedSourceRootEntities: List<ExpectedSourceRootEntity>,
 )
@@ -59,55 +69,54 @@ private data class GeneratedTargetInfo(
   val resourcesItems: List<String> = listOf(),
 )
 
+// TODO: convert it to real `BazelWorkspaceImporter` test fixture
 class PythonProjectSyncTest : MockProjectBaseTest() {
-  lateinit var hook: ProjectSyncHook
   lateinit var virtualFileUrlManager: VirtualFileUrlManager
+  lateinit var pythonBinary: PythonBinary
+
+  private companion object {
+    val logger = fileLogger()
+  }
 
   @BeforeEach
   fun beforeEach() {
     // given
-    hook = PythonProjectSync()
     initializeBazelProject(project, projectDir.get())
     virtualFileUrlManager = WorkspaceModel.getInstance(project).getVirtualFileUrlManager()
+
+    // Python plugin validates file.
+    // The real python should have been used, but in absence of it this path is good enough as most agents on TC are Ubuntu
+    pythonBinary =
+      timeoutRunBlocking { SystemPythonService().findSystemPythons().firstOrNull()?.pythonBinary ?: Path.of("/usr/bin/python3") }
+    logger.info("Found python $pythonBinary for project ${project.name}")
+  }
+
+  // Drop SDKs created by this test
+  @AfterEach
+  fun cleanupSdk(): Unit = timeoutRunBlocking {
+    edtWriteAction {
+      val table = ProjectJdkTable.getInstance()
+      for (sdk in PythonSdkUtil.getAllSdks()) {
+        table.removeJdk(sdk)
+      }
+    }
   }
 
   @Test
   fun `should add module with dependencies to workspace model diff`() {
     // given
     val pythonTestTargets = generateTestSet()
-    val server = BuildServerMock()
-    val resolver =
-      BazelWorkspaceResolveServiceMock(
-        resolvedWorkspace = pythonTestTargets.workspace,
-      )
-    val diff = MutableEntityStorage.create()
 
     // when
-    runBlocking {
-      reportSequentialProgress { reporter ->
-        val environment =
-          ProjectSyncHook.ProjectSyncHookEnvironment(
-            project = project,
-            syncScope = SecondPhaseSync,
-            server = server,
-            resolver = resolver,
-            diff = diff,
-            taskId = TaskGroupId.EMPTY.task("test"),
-            progressReporter = reporter,
-            // TODO: not used yet, https://youtrack.jetbrains.com/issue/BAZEL-1960
-            buildTargets = emptyMap(),
-            workspace = pythonTestTargets.workspace,
-          )
-        hook.onSync(environment)
-      }
-    }
+    val diff = MutableEntityStorage.create()
+    runPythonImporter(pythonTestTargets.workspaceSnapshot, diff)
 
     // then
     val actualModuleEntities =
       diff.entities(ModuleEntity::class.java)
         .toList()
         .filter { it.type == ModuleTypeId("PYTHON_MODULE") }
-
+    logger.info("Checking for project ${project.name}")
     actualModuleEntities shouldContainExactlyInAnyOrder pythonTestTargets.expectedModuleEntities
     actualModuleEntities.shouldAllHaveTheSameSDK()
   }
@@ -116,32 +125,10 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
   fun `should add module with sources to workspace model diff`() {
     // given
     val pythonTestTargets = generateTestSetWithSources()
-    val server = BuildServerMock()
-    val resolver =
-      BazelWorkspaceResolveServiceMock(
-        resolvedWorkspace = pythonTestTargets.workspace,
-      )
-    val diff = MutableEntityStorage.create()
 
     // when
-    runBlocking {
-      reportSequentialProgress { reporter ->
-        val environment =
-          ProjectSyncHook.ProjectSyncHookEnvironment(
-            project = project,
-            syncScope = SecondPhaseSync,
-            server = server,
-            resolver = resolver,
-            diff = diff,
-            taskId = TaskGroupId.EMPTY.task("test"),
-            progressReporter = reporter,
-            // TODO: not used yet, https://youtrack.jetbrains.com/issue/BAZEL-1960
-            buildTargets = emptyMap(),
-            workspace = pythonTestTargets.workspace,
-          )
-        hook.onSync(environment)
-      }
-    }
+    val diff = MutableEntityStorage.create()
+    runPythonImporter(pythonTestTargets.workspaceSnapshot, diff)
 
     // then
     val actualModuleEntities =
@@ -151,20 +138,34 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     actualModuleEntities shouldContainExactlyInAnyOrder pythonTestTargets.expectedSourceRootEntities
   }
 
+  private fun runPythonImporter(snapshot: WorkspaceSnapshot, builder: MutableEntityStorage) = runBlocking {
+    //ExtensionTestUtil.maskExtensions(BazelWorkspaceImporter.EP_NAME, listOf(...))
+    reportSequentialProgress { reporter ->
+      val helper = WorkspaceImporterHelper(
+        project = project,
+        taskConsole = project.syncConsole,
+        progressReporter = reporter,
+        taskId = TaskGroupId.EMPTY.task("test"),
+        builder = builder
+      )
+      helper.invoke(reporter, snapshot)
+    }
+  }
+
   private fun generateTestSet(): PythonTestSet {
     val pythonLibrary1 =
       GeneratedTargetInfo(
-        targetId = Label.parse("@@server.lib:lib1"),
+        targetId = Label.parse("@@server.lib//:lib1"),
         type = "library",
       )
     val pythonLibrary2 =
       GeneratedTargetInfo(
-        targetId = Label.parse("@@server/lib:lib2"),
+        targetId = Label.parse("@@server//lib:lib2"),
         type = "library",
       )
     val pythonBinary =
       GeneratedTargetInfo(
-        targetId = Label.parse("@@server:main_app"),
+        targetId = Label.parse("@@server//:main_app"),
         type = "PYTHON_MODULE",
         dependencies = listOf(pythonLibrary1.targetId, pythonLibrary2.targetId),
       )
@@ -176,19 +177,16 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     val expectedModuleEntity2 = generateExpectedModuleEntity(pythonLibrary1, emptyList())
     val expectedModuleEntity3 = generateExpectedModuleEntity(pythonLibrary2, emptyList())
     return PythonTestSet(
-      workspace = BazelResolvedWorkspaceBuilder.build(
-        rootTargets = targets.map { it.id }.toSet(),
-        targets = targets,
-      ),
-      expectedModuleEntities = listOf(expectedModuleEntity1, expectedModuleEntity2, expectedModuleEntity3),
-      expectedSourceRootEntities = emptyList(),
+      generateWorkspaceSnapshot(targets),
+      listOf(expectedModuleEntity1, expectedModuleEntity2, expectedModuleEntity3),
+      emptyList(),
     )
   }
 
   private fun generateTestSetWithSources(): PythonTestSet {
     val pythonBinary =
       GeneratedTargetInfo(
-        targetId = Label.parse("@@server:main_app"),
+        targetId = Label.parse("@@server//:main_app"),
         type = "PYTHON_MODULE",
         dependencies = listOf(),
       )
@@ -205,12 +203,9 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     val expectedContentRootEntities =
       generateExpectedSourceRootEntities(target, expectedModuleEntity.moduleEntity)
     return PythonTestSet(
-      workspace = BazelResolvedWorkspaceBuilder.build(
-        rootTargets = setOf(target.id),
-        targets = listOf(target),
-      ),
-      expectedModuleEntities = listOf(expectedModuleEntity),
-      expectedSourceRootEntities = expectedContentRootEntities,
+      generateWorkspaceSnapshot(listOf(target)),
+      listOf(expectedModuleEntity),
+      expectedContentRootEntities,
     )
   }
 
@@ -219,6 +214,7 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     sources: List<SourceItem>,
     resources: List<Path>,
   ): RawBuildTarget {
+
     val target =
       RawBuildTarget(
         info.targetId,
@@ -232,9 +228,10 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
         data = listOf(
           PythonBuildTarget(
             version = "3",
-            interpreter = Path(PYTHON_INTERPRETER),
+            interpreter = pythonBinary,
             listOf(),
             listOf(),
+            externalSources = listOf(),
           ),
         ),
         sources = sources,
@@ -244,11 +241,24 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     return target
   }
 
+  private fun generateWorkspaceSnapshot(targets: List<RawBuildTarget>): WorkspaceSnapshot = runBlocking {
+    WorkspaceSnapshotBuilder.build(
+      project = project,
+      workspaceContext = mockWorkspaceContext,
+      repoMapping = RepoMappingDisabled,
+      resolved = BazelResolvedWorkspace(
+        rootTargets = targets.map { it.id }.toSet(),
+        targets = targets,
+      ),
+    )
+  }
+
   private fun generateExpectedModuleEntity(
     targetInfo: GeneratedTargetInfo,
     dependenciesTargetInfo: List<GeneratedTargetInfo>,
   ): ExpectedModuleEntity {
-    val sdkDependency: ModuleDependencyItem = SdkDependency(SdkId("${project.name}-python-$PYTHON_INTERPRETER_MD5", "PythonSDK"))
+    val sdkName = chooseSdkName(pythonBinary, project.name)
+    val sdkDependency: ModuleDependencyItem = SdkDependency(SdkId(sdkName, "PythonSDK"))
     val moduleDependencies: List<ModuleDependencyItem> =
       dependenciesTargetInfo.map {
         ModuleDependency(
@@ -298,6 +308,3 @@ class PythonProjectSyncTest : MockProjectBaseTest() {
     sdks.distinct().size shouldBe 1
   }
 }
-
-private const val PYTHON_INTERPRETER = "/path/to/interpreter"
-private const val PYTHON_INTERPRETER_MD5 = "efdb3"

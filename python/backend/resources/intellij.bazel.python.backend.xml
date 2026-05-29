@@ -1,0 +1,33 @@
+<idea-plugin>
+  <!-- region Generated dependencies - run `Generate Product Layouts` to regenerate -->
+  <dependencies>
+    <module name="intellij.bazel.commons"/>
+    <module name="intellij.bazel.importer"/>
+    <module name="intellij.platform.backend"/>
+    <module name="intellij.platform.kernel.backend"/>
+    <module name="intellij.platform.rpc.backend"/>
+    <module name="intellij.python.community.impl"/>
+    <module name="intellij.python.community.services.systemPython"/>
+    <module name="intellij.python.sdk"/>
+  </dependencies>
+  <!-- endregion -->
+
+  <resource-bundle>messages.BazelPythonBackendBundle</resource-bundle>
+
+  <extensionPoints>
+    <extensionPoint
+      dynamic="true"
+      interface="com.intellij.bazel.python.backend.PythonSynonymProvider"
+      qualifiedName="org.jetbrains.bazel.python.synonymProvider"
+    />
+  </extensionPoints>
+
+  <extensions defaultExtensionNs="Pythonid">
+    <importResolver implementation="com.intellij.bazel.python.backend.BazelPyImportResolver" />
+  </extensions>
+
+  <extensions defaultExtensionNs="org.jetbrains.bazel">
+    <indexAdditionalFilesContributor implementation="com.intellij.bazel.python.backend.PythonIndexAdditionalFilesContributor"/>
+    <syncWorkspaceImporter implementation="com.intellij.bazel.python.backend.BazelPythonWorkspaceImporter"/>
+  </extensions>
+</idea-plugin>
