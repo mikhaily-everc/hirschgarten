@@ -53,10 +53,7 @@
     <!-- python modules -->
     <module name="intellij.bazel.python.common"/>
     <module name="intellij.bazel.python.common.performancePlugin"/>
-    <!-- everc fork: intellij.bazel.python.backend excluded — python/backend has no
-         generated BUILD file, so //:plugin-bazel_zip cannot package its jar, and a
-         <content> module without its lib/modules jar makes the IDE fail to load the
-         whole plugin descriptor. Restore once upstream ships python/backend/BUILD. -->
+    <module name="intellij.bazel.python.backend"/>
 
     <!-- groovy modules -->
     <module name="intellij.bazel.groovy.common"/>
