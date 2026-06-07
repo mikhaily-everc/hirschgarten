@@ -32,6 +32,11 @@ data class WorkspaceContext(
    */
   val debugFlags: List<String>,
   /**
+   * Startup options (e.g. --output_base) placed before the command verb on every bazel call.
+   * Defaulted so that construction sites unaware of startup flags stay source-compatible.
+   */
+  val startupFlags: List<String> = emptyList(),
+  /**
    * Path to bazel which should be used in the bazel runner.
    */
   val bazelBinary: Path?,

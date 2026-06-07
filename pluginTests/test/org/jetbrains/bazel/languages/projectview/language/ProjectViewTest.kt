@@ -13,6 +13,7 @@ import org.jetbrains.bazel.languages.projectview.debugFlags
 import org.jetbrains.bazel.languages.projectview.psi.ProjectViewPsiFile
 import org.jetbrains.bazel.languages.projectview.sections.ShardSyncSection
 import org.jetbrains.bazel.languages.projectview.sections.TargetsSection
+import org.jetbrains.bazel.languages.projectview.startupFlags
 import org.jetbrains.bazel.languages.projectview.syncFlags
 import org.jetbrains.bazel.languages.projectview.testFlags
 import org.junit.Test
@@ -98,12 +99,14 @@ class ProjectViewTest : BasePlatformTestCase() {
       """
         sync_flags:
           --announce_rc
-        build_flags: 
+        build_flags:
           --define=ij_product=intellij-latest
         debug_flags:
           --debugger_port=5555
         test_flags:
           --test_suite=MyTestSuite
+        startup_flags:
+          --output_base=/tmp/ide_output_base
         """.trimIndent(),
     )
 
@@ -113,5 +116,19 @@ class ProjectViewTest : BasePlatformTestCase() {
     pv.buildFlags shouldContain "--define=ij_product=intellij-latest"
     pv.debugFlags shouldContain "--debugger_port=5555"
     pv.testFlags shouldContain "--test_suite=MyTestSuite"
+    pv.startupFlags shouldContain "--output_base=/tmp/ide_output_base"
+  }
+
+  @Test
+  fun `test startup flag allowed under startup_flags`() {
+    myFixture.configureByText(".bazelproject", """startup_flags: --output_base=/tmp/ide_output_base""")
+    myFixture.checkHighlighting()
+  }
+
+  @Test
+  fun `test startup flag not allowed under build_flags`() {
+    val message = ProjectViewBundle.getMessage("annotator.flag.not.allowed.here.error", "--output_base=/tmp/x", "[build]")
+    myFixture.configureByText(".bazelproject", """build_flags: <warning descr="$message">--output_base=/tmp/x</warning>""")
+    myFixture.checkHighlighting()
   }
 }

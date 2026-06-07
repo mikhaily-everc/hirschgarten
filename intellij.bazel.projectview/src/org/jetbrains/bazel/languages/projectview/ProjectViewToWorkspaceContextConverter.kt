@@ -29,6 +29,7 @@ object ProjectViewToWorkspaceContextConverter {
       buildFlags = projectView.buildFlags,
       syncFlags = projectView.syncFlags,
       debugFlags = getAllDebugFlags(projectView),
+      startupFlags = projectView.startupFlags,
       bazelBinary = projectView.bazelBinary?.let { workspaceRoot.resolve(it) }
                     ?: bazelExecutable,
       allowManualTargetsSync = projectView.allowManualTargetsSync,

@@ -22,6 +22,7 @@ import org.jetbrains.bazel.languages.projectview.sections.PythonDebugFlagsSectio
 import org.jetbrains.bazel.languages.projectview.sections.RunConfigRunWithBazelSection
 import org.jetbrains.bazel.languages.projectview.sections.ShardSyncSection
 import org.jetbrains.bazel.languages.projectview.sections.ShardingApproachSection
+import org.jetbrains.bazel.languages.projectview.sections.StartupFlagsSection
 import org.jetbrains.bazel.languages.projectview.sections.SyncFlagsSection
 import org.jetbrains.bazel.languages.projectview.sections.TargetShardSizeSection
 import org.jetbrains.bazel.languages.projectview.sections.TargetsSection
@@ -58,6 +59,7 @@ internal class DefaultProjectViewSectionProvider : ProjectViewSectionProvider {
       PythonDebugFlagsSection(),
       ShardingApproachSection(),
       ShardSyncSection(),
+      StartupFlagsSection(),
       SyncFlagsSection(),
       TargetShardSizeSection(),
       TargetsSection(),
