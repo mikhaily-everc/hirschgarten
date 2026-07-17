@@ -1,0 +1,23 @@
+<idea-plugin>
+  <dependencies>
+    <module name="intellij.bazel.commons"/>
+    <module name="intellij.bazel.core"/>
+    <module name="intellij.bazel.importer"/>
+    <module name="intellij.bazel.projectview"/>
+    <module name="intellij.bazel.java.common"/>
+    <module name="intellij.bazel.java.sync"/>
+  </dependencies>
+
+  <extensions defaultExtensionNs="org.jetbrains.bazel">
+    <languageClassProvider
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.GroovyLanguageClassProvider"/>
+    <targetKindProvider
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.GroovyBazelRules"/>
+    <jvmLanguagePlugin
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.GroovyLanguagePlugin"/>
+    <projectViewSectionProvider
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.projectview.GroovyProjectViewSectionProvider"/>
+    <javaSourceRootPrefixContributor
+      implementation="org.jetbrains.bazel.sync.workspace.languages.groovy.projectview.GroovyProjectViewSourceRootPatternContributor"/>
+  </extensions>
+</idea-plugin>

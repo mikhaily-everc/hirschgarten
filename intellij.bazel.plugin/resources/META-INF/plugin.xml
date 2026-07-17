@@ -50,6 +50,7 @@
 
     <!-- go modules -->
     <module name="intellij.bazel.golang.common"/>
+    <module name="intellij.bazel.groovy.common"/>
 
     <!-- python modules -->
     <module name="intellij.bazel.python.common"/>

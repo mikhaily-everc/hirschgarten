@@ -40,6 +40,9 @@
 - name: lib/modules/intellij.bazel.golang.common.jar
   contentModules:
   - name: intellij.bazel.golang.common
+- name: lib/modules/intellij.bazel.groovy.common.jar
+  contentModules:
+  - name: intellij.bazel.groovy.common
 - name: lib/modules/intellij.bazel.importer.jar
   contentModules:
   - name: intellij.bazel.importer

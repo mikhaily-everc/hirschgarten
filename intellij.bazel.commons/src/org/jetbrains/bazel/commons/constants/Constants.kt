@@ -39,5 +39,5 @@ object Constants {
 
   const val NO_IDE = "no-ide"
 
-  val JVM_LANGUAGES_EXTENSIONS = listOf("java", "kt", "scala")
+  val JVM_LANGUAGES_EXTENSIONS = listOf("java", "kt", "scala", "groovy")
 }
