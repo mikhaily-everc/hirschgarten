@@ -10,7 +10,11 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 bazel_dep(name = "intellij_aspect_sdk")
 git_override(
     module_name = "intellij_aspect_sdk",
-    commit = "03e9731a3ee98417c2825887a9343a583790fd48",
+    # everc: bumped past upstream's stale pin (03e9731a) — this branch's java.sync uses newer
+    # KotlinTargetInfo proto fields (associated_targets, exported_compiler_plugin_targets) that
+    # 03e9731a lacks. dbddc20e adds them (old fields kept as deprecated). The ROOT ai-utils
+    # git_override is what actually governs resolution; kept in sync here for clarity.
+    commit = "dbddc20e0c254291575202c5a9893916a98da06b",
     remote = "https://github.com/JetBrains/intellij-aspect.git",
 )
 

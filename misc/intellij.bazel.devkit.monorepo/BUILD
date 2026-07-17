@@ -19,6 +19,7 @@ jvm_library(
         # do not sort,
         "@lib//:kotlin-stdlib",
         "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
+        "//plugins/bazel/java/intellij.bazel.java.core:bazel-java-core",
         "@community//java/debugger/impl",
         "@community//platform/core-api:core",
         "@community//platform/xdebugger-api:debugger",

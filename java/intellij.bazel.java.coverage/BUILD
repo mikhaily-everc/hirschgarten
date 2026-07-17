@@ -30,6 +30,7 @@ jvm_library(
         "@community//plugins/coverage",
         "@community//platform/execution",
         "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
+        "//plugins/bazel/java/intellij.bazel.java.core:bazel-java-core",
         "@community//platform/ide-core",
         "@community//platform/smRunner",
         "@community//platform/testRunner",

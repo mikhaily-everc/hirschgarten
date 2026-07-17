@@ -13,7 +13,7 @@ jvm_provided_library(
 )
 
 jvm_library(
-    name = "bazel-java-common",
+    name = "bazel-java-core",
     srcs = glob(
         [
             "src/**/*.kt",
@@ -22,7 +22,7 @@ jvm_library(
         ],
         allow_empty = True,
     ),
-    module_name = "intellij.bazel.java.common",
+    module_name = "intellij.bazel.java.core",
     resource_strip_prefix = "resources",
     resources = glob(
         ["resources/**/*"],
@@ -34,6 +34,7 @@ jvm_library(
         "@community//libraries/kotlinx/coroutines/core",
         "//plugins/bazel/intellij.bazel.core:core",
         "//plugins/bazel/intellij.bazel.commons:commons",
+        "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
         "//plugins/bazel/intellij.bazel.importer:importer",
         "//plugins/bazel/intellij.bazel.connector:connector",
         "//plugins/bazel/intellij.bazel.projectview:projectview",
@@ -88,17 +89,17 @@ jvm_library(
 )
 
 jvm_library(
-    name = "bazel-java-common_test_lib",
+    name = "bazel-java-core_test_lib",
     testonly = True,
     srcs = glob(
         [],
         allow_empty = True,
     ),
-    module_name = "intellij.bazel.java.common",
+    module_name = "intellij.bazel.java.core",
     visibility = ["//visibility:public"],
     runtime_deps = [
         # do not sort,
-        ":bazel-java-common",
+        ":bazel-java-core",
         "@community//libraries/kotlinx/coroutines/core:core_test_lib",
         "//plugins/bazel/intellij.bazel.core:core_test_lib",
         "//plugins/bazel/intellij.bazel.commons:commons_test_lib",
@@ -161,7 +162,7 @@ jvm_library(
 ### auto-generated section `iml intellij.bazel.java.common` start
 exports_files(
     [
-        "intellij.bazel.java.common.iml",
+        "intellij.bazel.java.core.iml",
     ],
     visibility = ["//visibility:public"],
 )

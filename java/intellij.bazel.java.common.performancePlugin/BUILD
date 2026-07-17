@@ -19,6 +19,7 @@ jvm_library(
     ),
     visibility = ["//visibility:public"],
     deps = [
+        "//plugins/bazel/java/intellij.bazel.java.core:bazel-java-core",
         # do not sort,
         "@lib//:kotlin-stdlib",
         "@community//libraries/kotlinx/coroutines/core",

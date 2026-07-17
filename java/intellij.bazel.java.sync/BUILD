@@ -24,6 +24,7 @@ jvm_library(
     ),
     visibility = ["//visibility:public"],
     deps = [
+        "//plugins/bazel/intellij.bazel.connector:connector",
         # do not sort,
         "@lib//:kotlin-stdlib",
         "@lib//:jetbrains-annotations",
@@ -32,6 +33,7 @@ jvm_library(
         "@community//platform/platform-api:ide",
         "@community//libraries/protobuf",
         "//plugins/bazel/intellij.bazel.commons:commons",
+        "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
         "//plugins/bazel/protobuf",
         "//plugins/bazel/intellij.bazel.importer:importer",
         "@community//platform/backend",

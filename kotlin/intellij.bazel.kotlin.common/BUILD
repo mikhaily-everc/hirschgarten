@@ -25,6 +25,7 @@ jvm_library(
         "//plugins/bazel/intellij.bazel.core:core",
         "//plugins/bazel/intellij.bazel.commons:commons",
         "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
+        "//plugins/bazel/java/intellij.bazel.java.core:bazel-java-core",
         "//plugins/bazel/intellij.bazel.importer:importer",
         "@community//platform/core-api:core",
         "@community//platform/core-impl",

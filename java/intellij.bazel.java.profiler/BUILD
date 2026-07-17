@@ -29,6 +29,7 @@ jvm_library(
         "@community//platform/ide-core",
         "//plugins/bazel/intellij.bazel.core:core",
         "//plugins/bazel/java/intellij.bazel.java.common:bazel-java-common",
+        "//plugins/bazel/java/intellij.bazel.java.core:bazel-java-core",
         "@community//platform/smRunner",
         "@community//platform/testRunner",
         "@community//platform/platform-util-io:ide-util-io",

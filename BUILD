@@ -5,6 +5,10 @@ load(
     "intellij_plugin_zip_and_debug_target",
 )
 
+# Expose the maven lockfile so the ai-utils root MODULE.bazel can reuse it as the
+# shared @maven install (maven.install(lock_file = "@hirschgarten//:maven_install.json")).
+exports_files(["maven_install.json"])
+
 kt_kotlinc_options(
     name = "kotlinc_options",
     include_stdlibs = "none",
@@ -50,6 +54,7 @@ intellij_plugin_zip_and_debug_target(
         "//intellij.bazel.importer",
         "//java/intellij.bazel.java.common",
         "//java/intellij.bazel.java.common.performancePlugin",
+        "//java/intellij.bazel.java.core",
         "//java/intellij.bazel.java.coverage",
         "//java/intellij.bazel.java.profiler",
         "//java/intellij.bazel.java.sync",
