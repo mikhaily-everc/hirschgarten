@@ -23,6 +23,7 @@ import org.jetbrains.bazel.languages.projectview.sections.PythonDebugFlagsSectio
 import org.jetbrains.bazel.languages.projectview.sections.RunConfigRunWithBazelSection
 import org.jetbrains.bazel.languages.projectview.sections.ShardSyncSection
 import org.jetbrains.bazel.languages.projectview.sections.ShardingApproachSection
+import org.jetbrains.bazel.languages.projectview.sections.StartupFlagsSection
 import org.jetbrains.bazel.languages.projectview.sections.SyncFlagsSection
 import org.jetbrains.bazel.languages.projectview.sections.TargetShardSizeSection
 import org.jetbrains.bazel.languages.projectview.sections.TargetsSection
@@ -45,6 +46,10 @@ val ProjectView.directories: List<ExcludableValue<Path>>
 val ProjectView.buildFlags: List<String>
   @ApiStatus.Internal
   get() = getSection(BuildFlagsSection.KEY) ?: emptyList()
+
+val ProjectView.startupFlags: List<String>
+  @ApiStatus.Internal
+  get() = getSection(StartupFlagsSection.KEY) ?: emptyList()
 
 val ProjectView.syncFlags: List<String>
   @ApiStatus.Internal

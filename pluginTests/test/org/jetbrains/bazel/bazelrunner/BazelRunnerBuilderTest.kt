@@ -387,6 +387,51 @@ class BazelRunnerBuilderTest {
   }
 
   @Test
+  fun `startup flags are placed between binary and command verb`() {
+    val contextWithStartupFlags = mockContext.copy(startupFlags = listOf("--output_base=/tmp/ide_output_base"))
+    val command =
+      bazelRunner.buildBazelCommand(workspaceContext = contextWithStartupFlags, inheritProjectviewOptionsOverride = false) {
+        build()
+      }
+
+    val (targets, cmds) = splitOfTargetPattern(command.buildExecutionDescriptor().command)
+    cmds shouldContainExactly
+      listOf(
+        "bazel",
+        "--output_base=/tmp/ide_output_base",
+        "build",
+        BazelFlag.toolTag(),
+        "--curses=no",
+        "--color=yes",
+        "--noprogress_in_terminal_title",
+      )
+    targets shouldBe emptyList()
+  }
+
+  @Test
+  fun `startup flags apply even when projectview options are not inherited`() {
+    val contextWithStartupFlags = mockContext.copy(startupFlags = listOf("--output_base=/tmp/ide_output_base"))
+    val command =
+      bazelRunner.buildBazelCommand(workspaceContext = contextWithStartupFlags, inheritProjectviewOptionsOverride = null) {
+        query {
+          targets.add("in1".label())
+        }
+      }
+
+    command.buildExecutionDescriptor().command shouldContainExactly
+      listOf(
+        "bazel",
+        "--output_base=/tmp/ide_output_base",
+        "query",
+        BazelFlag.toolTag(),
+        "--curses=no",
+        "--color=yes",
+        "--noprogress_in_terminal_title",
+        "in1",
+      )
+  }
+
+  @Test
   fun `bes arguments are handled properly`() {
     val command =
       bazelRunner.buildBazelCommand(mockContext) {

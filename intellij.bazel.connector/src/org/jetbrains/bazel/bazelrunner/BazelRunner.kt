@@ -123,6 +123,10 @@ class BazelRunner(
       command.options.addAll(workspaceContext.buildFlags)
     }
 
+    // Startup options apply to EVERY invocation (incl. info/query/mod during sync),
+    // so they are not gated on inheritWorkspaceOptions.
+    command.startupOptions.addAll(workspaceContext.startupFlags)
+
     return command
   }
 
